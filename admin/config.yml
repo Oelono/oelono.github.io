@@ -71,6 +71,11 @@ collections:
                 widget: "file"
                 required: false
                 hint: "Upload or link an .mp4 to play as the 10-second video ad before sponsor steps. If left empty, an AdSense ad block is shown for 10 seconds instead."
+              - label: "Tutorial / Explainer Video (optional)"
+                name: "tutorialVideoUrl"
+                widget: "file"
+                required: false
+                hint: "Optional. Upload or link a short .mp4 showing how to download this asset. When set, it plays in a small side panel next to the download popup (muted preview by default; visitors click it to play with sound). Leave empty to hide that panel entirely — it's fully optional, nothing breaks if you skip it."
               - label: "Sponsor Links (Steps 2–4 of the download flow)"
                 name: "sponsorLinks"
                 widget: "list"
