@@ -223,6 +223,47 @@ function initLanguage() {
   renderCategoryChips();
 }
 
+/* =========================================================
+   Language switcher — plain EN/AR/RU buttons that drive Google's
+   translation engine via the same cookie the (hidden) Google
+   Translate widget reads on load. Clicking a button sets that
+   cookie and reloads the page; Google's script then translates the
+   whole DOM (and keeps re-translating anything script.js adds
+   later, like product titles, via its own MutationObserver) —
+   no per-string dictionary to maintain, no visible Google UI.
+   ========================================================= */
+const GOOGTRANS_COOKIE = "googtrans";
+
+function getActiveTranslateLang() {
+  const match = document.cookie.match(/(?:^|;\s*)googtrans=\/en\/([a-z-]+)/);
+  return match ? match[1] : "en";
+}
+
+function setActiveTranslateLang(lang) {
+  if (lang === "en") {
+    // Clear the cookie to go back to the original English page.
+    document.cookie = `${GOOGTRANS_COOKIE}=; path=/; max-age=0`;
+  } else {
+    document.cookie = `${GOOGTRANS_COOKIE}=/en/${lang}; path=/; max-age=31536000`;
+  }
+  window.location.reload();
+}
+
+function initLangSwitcher() {
+  const wrap = document.getElementById("lang-switcher");
+  if (!wrap) return;
+  const active = getActiveTranslateLang();
+  wrap.querySelectorAll("button[data-lang]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.lang === active);
+  });
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-lang]");
+    if (!btn || btn.classList.contains("active")) return;
+    setActiveTranslateLang(btn.dataset.lang);
+  });
+}
+initLangSwitcher();
+
 /* ---------- load data ---------- */
 async function loadProducts() {
   renderSkeletons(6);
