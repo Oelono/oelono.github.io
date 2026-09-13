@@ -264,6 +264,24 @@ function initLangSwitcher() {
 }
 initLangSwitcher();
 
+// Extra safety net for the Google Translate top banner: some versions of
+// the widget re-apply an inline "top" offset on <body> and the banner
+// iframe's own inline styles after our CSS has already loaded, which can
+// win over a plain stylesheet rule in rare cases. This watches for that
+// and forces it back down whenever it happens, on top of the CSS fix.
+(function keepGoogleBannerHidden() {
+  const fix = () => {
+    document.body.style.top = "0px";
+    document.body.style.position = document.body.style.position === "fixed" ? "static" : document.body.style.position;
+    document.querySelectorAll(".goog-te-banner-frame, iframe.goog-te-banner-frame").forEach(el => {
+      el.style.display = "none";
+      el.style.height = "0";
+    });
+  };
+  fix();
+  new MutationObserver(fix).observe(document.body, { attributes: true, attributeFilter: ["style"], childList: true });
+})();
+
 /* ---------- load data ---------- */
 async function loadProducts() {
   renderSkeletons(6);
