@@ -42,8 +42,9 @@
     {
       "license": "Free for personal & commercial use in your own Roblox projects",
       "driveLink": "https://drive.google.com/file/d/REPLACE_WITH_YOUR_ROBLOX_FILE_ID/view?usp=sharing",
-      "thumbnail": "https://placehold.co/600x400/0B0C10/9D4EDD?text=Roblox+Asset",
+      "thumbnail": "assets/uploads/robloxcimaen.jfif",
       "platform": "Roblox Studio (.rbxl)",
+      "previewImage": "assets/uploads/robloxcimaar.jfif",
       "title": "Video in roblox studio ",
       "library": "roblox",
       "id": "Video-roblox-studio",
