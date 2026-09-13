@@ -1,5 +1,14 @@
 {
-  "comments": {},
+  "comments": {
+    "cyber-samurai-rig": [
+      {
+        "name": "احمد",
+        "text": "ها يجي منه",
+        "rating": 5,
+        "ts": 1789313929014
+      }
+    ]
+  },
   "guestbook": [
     {
       "name": "حمص",
