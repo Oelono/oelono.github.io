@@ -80,6 +80,7 @@ const strings = {
     modal_engine_label: "Render engine",
     modal_license_label: "License",
     modal_drive_btn: "Download final file",
+    tutorial_video_caption: "Stuck? Tap to watch how to download — with sound",
     modal_hint_default: "A sponsor page opens in a new tab to keep this library free.",
     modal_hint_ready: "Your file is ready — click below for the direct download.",
     modal_hint_video: "Watching the ad — the next step unlocks automatically in a few seconds.",
@@ -532,6 +533,48 @@ const adVideo = document.getElementById("ad-video");
 const adVideoFallback = document.getElementById("ad-video-fallback");
 const adVideoCountdownEl = document.getElementById("ad-video-countdown");
 const adVideoCaption = document.getElementById("ad-video-caption");
+const tutorialPanel = document.getElementById("tutorial-panel");
+const tutorialVideo = document.getElementById("tutorial-video");
+const tutorialVideoToggle = document.getElementById("tutorial-video-toggle");
+
+// Optional site-wide fallback tutorial/explainer video, used when a product
+// doesn't define its own `tutorialVideoUrl`. Leave empty (default) to keep
+// the side panel fully optional/off unless a product sets one via the CMS.
+window.DEFAULT_TUTORIAL_VIDEO_URL = window.DEFAULT_TUTORIAL_VIDEO_URL || "";
+
+// Shows/hides the optional "how to download" side panel for the product
+// currently open in the modal. Starts muted+looping (a silent preview);
+// clicking the overlay unmutes, shows native controls, and plays with sound.
+function setupTutorialPanel(product) {
+  const src = (product && product.tutorialVideoUrl) || window.DEFAULT_TUTORIAL_VIDEO_URL || "";
+  tutorialPanel.classList.remove("played");
+  tutorialVideo.pause();
+  tutorialVideo.controls = false;
+  tutorialVideo.muted = true;
+  tutorialVideo.currentTime = 0;
+
+  if (!src) {
+    tutorialPanel.classList.add("hidden");
+    tutorialVideo.removeAttribute("src");
+    return;
+  }
+
+  tutorialPanel.classList.remove("hidden");
+  tutorialVideo.src = src;
+  tutorialVideo.load();
+  tutorialVideo.play().catch(() => { /* silent autoplay can still be blocked on some browsers; the tap-to-play overlay covers that case */ });
+}
+
+if (tutorialVideoToggle) {
+  tutorialVideoToggle.addEventListener("click", () => {
+    tutorialVideo.muted = false;
+    tutorialVideo.loop = false;
+    tutorialVideo.controls = true;
+    tutorialVideo.currentTime = 0;
+    tutorialVideo.play().catch(() => { /* no-op — user gesture should satisfy autoplay policies here */ });
+    tutorialPanel.classList.add("played");
+  });
+}
 
 // Optional site-wide fallback video ad, used when a product doesn't define
 // its own `adVideoUrl`. Point this at an .mp4 you own/have rights to run as
@@ -685,6 +728,8 @@ function openModal(product) {
 
   renderStepIndicator(GATE_TOTAL_STEPS, 0);
   updateOverallProgress(GATE_TOTAL_STEPS, 0, 0);
+
+  setupTutorialPanel(product);
 
   modal.classList.remove("hidden");
   modal.classList.add("flex");
@@ -863,6 +908,9 @@ function closeModal() {
   clearInterval(videoTimer);
   try { adVideo.pause(); } catch (e) { /* no-op */ }
   adVideoStep.classList.add("hidden");
+  try { tutorialVideo.pause(); } catch (e) { /* no-op */ }
+  tutorialPanel.classList.add("hidden");
+  tutorialPanel.classList.remove("played");
   activeProduct = null;
 }
 
