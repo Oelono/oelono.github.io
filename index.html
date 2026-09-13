@@ -239,6 +239,34 @@ background: var(--bg-raised);
 border:1px solid var(--line);
 animation: rise .3s cubic-bezier(.22,.9,.3,1) both;
 }
+/* Optional "how to download" tutorial video panel — sits beside the
+   download popup (stacks below it on narrow/mobile screens). Muted
+   looping preview by default; .played hides the instructional
+   overlay once the visitor has clicked to play it with sound. */
+.tutorial-panel{
+background:#000;
+border:1px solid var(--line);
+animation: rise .3s cubic-bezier(.22,.9,.3,1) both;
+max-height:70vh;
+}
+.tutorial-play-overlay{
+position:absolute; inset:0; width:100%; height:100%;
+display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+background:linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.65) 100%);
+color:#fff; text-align:center; padding:1.25rem;
+cursor:pointer; border:none;
+transition: opacity .2s ease;
+}
+.tutorial-play-overlay:hover{ background:linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.75) 100%); }
+.tutorial-play-icon{
+width:52px; height:52px; border-radius:9999px;
+display:flex; align-items:center; justify-content:center;
+background:rgba(255,255,255,0.92); color:#0A0A0A;
+font-size:18px; padding-left:3px; /* optical centering of the ► glyph */
+box-shadow:0 8px 20px -6px rgba(0,0,0,0.6);
+}
+.tutorial-caption{ font-size:12.5px; font-weight:600; line-height:1.4; max-width:180px; text-shadow:0 1px 3px rgba(0,0,0,0.6); }
+#tutorial-panel.played .tutorial-play-overlay{ opacity:0; pointer-events:none; }
 .ring-progress{
 transition: stroke-dashoffset 1s linear;
 }
@@ -274,27 +302,22 @@ html[lang="ru"] .badge{ font-family:'Inter',sans-serif; font-weight:700; letter-
 [dir="rtl"] .stat-divider{ border-left:none; border-right:1px solid var(--line); }
 [dir="rtl"] dd{ text-align:left; }
 [dir="rtl"] .hero-rule{ margin-left:auto; }
-/* lightweight Google Translate widget styling — blends the default
-   Google dropdown into the dark header instead of its default look,
-   and hides the top banner iframe it injects on the <body> while a
-   translation is active. */
-#google_translate_element{ display:flex; align-items:center; }
-#google_translate_element .goog-te-gadget{ font-family:inherit; font-size:0; color:transparent; }
-#google_translate_element .goog-te-gadget > span > a{ display:none !important; } /* hide "powered by" link icon spam */
-#google_translate_element .goog-te-combo{
-  font-size:12px;
-  font-family:inherit;
-  color:var(--ink-dim);
-  background:transparent;
-  border:1px solid var(--line);
-  border-radius:9999px;
-  padding:6px 10px;
-  cursor:pointer;
+/* Weglot language switcher — blends its default dropdown into the
+   dark header instead of Weglot's default light-theme look. */
+.weglot-container{ display:flex; align-items:center; }
+#weglot-nav-dropdown, .wg-drop{
+  font-size:12px !important;
+  font-family:inherit !important;
+  color:var(--ink-dim) !important;
+  background:transparent !important;
+  border:1px solid var(--line) !important;
+  border-radius:9999px !important;
 }
-.goog-te-banner-frame.skiptranslate{ display:none !important; }
-body{ top:0 !important; }
-.goog-tooltip, .goog-tooltip:hover{ display:none !important; }
-.goog-text-highlight{ background:none !important; box-shadow:none !important; }
+.wg-drop .wg-flags,
+.wg-drop .wgcurrent{
+  background:transparent !important;
+  color:var(--ink-dim) !important;
+}
 
 /* ---------- drifting sand-grain particle layer ---------- */
 #sand-canvas{
@@ -510,6 +533,28 @@ box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
 [dir="rtl"] #toast{ transform:translateX(50%) translateY(20px); }
 [dir="rtl"] #toast.show{ transform:translateX(50%) translateY(0); }
 </style>
+
+<!-- =========================================================
+     Weglot — automatic translation
+     ---------------------------------------------------------
+     The site's own content is written in English (see html lang
+     above and the copy throughout this file), so that's the real
+     original language, not Arabic — Weglot is configured to
+     translate FROM English INTO Arabic and Russian. Weglot also
+     auto-manages the page's dir="rtl"/dir="ltr" switch for Arabic
+     vs. English/Russian, and the CSS in this file already has a
+     full set of [dir="rtl"] overrides, so the two work together
+     without fighting each other.
+     ========================================================= -->
+<script type="text/javascript" src="https://cdn.weglot.com/weglot.min.js"></script>
+<script>
+  Weglot.initialize({
+    api_key: 'wg_268481029df55e1a78a1017aa87def719',
+    originalLanguage: 'en',
+    destinationLanguages: ['ar', 'ru']
+  });
+</script>
+
 </head>
 <body class="min-h-screen">
 <!-- POPUNDER AD (kept high in body so its click-listener attaches before any user interaction) -->
@@ -527,7 +572,7 @@ box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
 <a href="#how-it-works" class="hover:text-[var(--ink)] transition-colors" data-i18n="nav_how">How it works</a>
 </nav>
 <div class="flex items-center gap-4">
-<div id="google_translate_element" class="notranslate"></div>
+<div id="weglot-nav-dropdown" class="weglot-container"></div>
 <a href="#library" class="btn-primary text-sm px-4 py-2 rounded-md" data-i18n="nav_browse">Browse assets</a>
 <button id="open-request-modal" class="chip text-sm px-4 py-2 rounded-md hidden sm:inline-flex items-center gap-1.5">
 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
@@ -854,7 +899,8 @@ class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)]
 
 <!-- DOWNLOAD MODAL -->
 <div id="download-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
-<div class="modal-panel relative w-full max-w-md rounded-xl p-6 md:p-7">
+<div class="modal-layout flex flex-col md:flex-row items-stretch gap-4 w-full max-w-4xl">
+<div class="modal-panel relative w-full md:max-w-md rounded-xl p-6 md:p-7">
 <button id="modal-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
 </button>
@@ -913,6 +959,23 @@ class="hidden btn-primary w-full py-3 rounded-lg text-sm items-center justify-ce
 </a>
 <p id="modal-hint" class="text-xs text-[var(--ink-dim)] text-center mt-3">A sponsor page opens in a new tab to keep this library free.</p>
 </div>
+</div>
+
+<!-- Optional side "how to download" tutorial video panel.
+     Hidden entirely (display:none) unless the active product has a
+     tutorialVideoUrl set via the admin — see openModal()/toggleTutorialPanel()
+     in script.js. Starts as a silent looping preview with an instructional
+     overlay; clicking it unmutes and plays with sound. -->
+<div id="tutorial-panel" class="hidden tutorial-panel w-full md:w-64 rounded-xl overflow-hidden shrink-0">
+<div id="tutorial-video-wrap" class="relative" style="aspect-ratio:9/16; background:#000;">
+<video id="tutorial-video" playsinline loop muted class="w-full h-full object-cover"></video>
+<button id="tutorial-video-toggle" type="button" class="tutorial-play-overlay" aria-label="Play tutorial with sound">
+<span class="tutorial-play-icon" aria-hidden="true">►</span>
+<span class="tutorial-caption" data-i18n="tutorial_video_caption">Stuck? Tap to watch how to download — with sound</span>
+</button>
+</div>
+</div>
+
 </div>
 </div>
 
@@ -1149,26 +1212,6 @@ init();
 })();
 </script>
 <script src="script.js"></script>
-
-<!-- =========================================================
-     Automatic translation (Google Translate widget)
-     ---------------------------------------------------------
-     Replaces the old hand-maintained EN/AR/RU dictionary in
-     script.js. The site content stays in English; this widget
-     translates the live page into whatever language the visitor
-     picks — covers every language Google supports, not just
-     three, and needs zero maintenance on our side. The actual
-     target div lives in the header nav.
-     ========================================================= -->
-<script>
-  function googleTranslateElementInit() {
-    new google.translate.TranslateElement(
-      { pageLanguage: "en", autoDisplay: false },
-      "google_translate_element"
-    );
-  }
-</script>
-<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async defer></script>
 
 </body>
 </html>
