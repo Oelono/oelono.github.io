@@ -312,14 +312,12 @@ html[lang="ru"] .badge{ font-family:'Inter',sans-serif; font-weight:700; letter-
   border-radius:9999px;
 }
 .lang-switch button.active{ color:var(--ink); background:var(--bg-raised); }
-/* Google Translate injects a fixed top banner iframe + a body offset
-   the moment a translation is active — hide/undo both so the layout
-   never jumps and no second "translated to X" bar appears on top of
-   our own buttons. */
-.goog-te-banner-frame.skiptranslate,
-iframe.goog-te-banner-frame,
-.goog-te-banner-frame{ display:none !important; visibility:hidden !important; height:0 !important; }
-body{ top:0 !important; position:static !important; }
+/* Google Translate's own top banner ("Translated to: X / Show original")
+   is allowed to show/hide naturally now — we stopped fighting it with
+   forced CSS, since Google's own script already pushes the page down
+   when it appears and restores it when it's closed. Trying to force it
+   hidden was causing it to half-work / flicker instead of actually
+   disappearing. The site's sticky header still sits right below it. */
 .goog-tooltip, .goog-tooltip:hover{ display:none !important; }
 .goog-text-highlight{ background:none !important; box-shadow:none !important; }
 /* The actual Google Translate widget element is never shown — it only
