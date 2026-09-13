@@ -11,10 +11,10 @@
 <meta name="robots" content="index, follow, max-image-preview:large">
 <!-- Tells Chrome NOT to show its own automatic "Translate this page?"
      browser bar (the grey strip with the Google logo the user sees
-     when opening the site) — we already offer a translate control of
-     our own (the small dropdown in the header, wired up further down
-     via the Google Translate website widget), so the browser's
-     automatic offer is redundant and this suppresses it. -->
+     when opening the site) — we already offer our own EN/AR/RU
+     switcher in the header (see #lang-switcher / setLang() in
+     script.js), so the browser's automatic offer is redundant and
+     this suppresses it. -->
 <meta name="google" content="notranslate">
 <link rel="canonical" href="https://oelono.github.io/blender-free-asset/">
 
@@ -302,27 +302,15 @@ html[lang="ru"] .badge{ font-family:'Inter',sans-serif; font-weight:700; letter-
 [dir="rtl"] .stat-divider{ border-left:none; border-right:1px solid var(--line); }
 [dir="rtl"] dd{ text-align:left; }
 [dir="rtl"] .hero-rule{ margin-left:auto; }
-/* Custom language switcher — plain EN/AR/RU pill buttons that drive
-   Google's translation engine underneath (see the script near </head>
-   and initLangSwitcher() in script.js). We deliberately never show
-   Google's own default dropdown/iframe UI — full custom control here. */
+/* Custom language switcher — plain EN/AR/RU pill buttons handled
+   entirely by setLang()/initLangSwitcher() in script.js. No
+   third-party dropdown/iframe/banner UI is ever shown. */
 .lang-switch button{
   color:var(--ink-dim);
   transition: color .16s ease, background .16s ease;
   border-radius:9999px;
 }
 .lang-switch button.active{ color:var(--ink); background:var(--bg-raised); }
-/* Google Translate's own top banner ("Translated to: X / Show original")
-   is allowed to show/hide naturally now — we stopped fighting it with
-   forced CSS, since Google's own script already pushes the page down
-   when it appears and restores it when it's closed. Trying to force it
-   hidden was causing it to half-work / flicker instead of actually
-   disappearing. The site's sticky header still sits right below it. */
-.goog-tooltip, .goog-tooltip:hover{ display:none !important; }
-.goog-text-highlight{ background:none !important; box-shadow:none !important; }
-/* The actual Google Translate widget element is never shown — it only
-   exists so the engine has somewhere to attach to. */
-#google_translate_element{ display:none !important; }
 
 /* ---------- drifting sand-grain particle layer ---------- */
 #sand-canvas{
@@ -540,30 +528,24 @@ box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
 </style>
 
 <!-- =========================================================
-     Automatic translation — Google's translation engine, driven by
-     our OWN plain EN/AR/RU buttons (see #lang-switcher in the header
-     and initLangSwitcher() in script.js), not Google's default
-     dropdown/banner UI. We tried Weglot first, but its free-plan
-     word cap and per-domain approval meant it silently stopped
-     translating part-way through the page. Google's widget has no
-     such cap and its MutationObserver keeps re-translating content
-     that scripts add to the page after load (e.g. product titles),
-     which is exactly what was missing before.
+     Automatic translation — our OWN plain EN/AR/RU buttons (see
+     #lang-switcher in the header and initLangSwitcher()/setLang()
+     in script.js) switch static UI text instantly using the
+     dictionaries in i18n.js, and translate dynamic content
+     (product titles/descriptions) on the fly through the Lingva
+     API (lingva.ml — an open-source, tracker-free front end for
+     Google Translate; see translateDynamic() in script.js). We
+     tried Weglot first, but its free-plan word cap and per-domain
+     approval meant it silently stopped translating part-way
+     through the page; we then tried Google's own Translate widget,
+     but it forced its own banner UI and a full reload on every
+     switch. This gives full custom control with no third-party UI
+     and no page reload.
      ========================================================= -->
-<script>
-  function googleTranslateElementInit() {
-    new google.translate.TranslateElement(
-      { pageLanguage: "en", includedLanguages: "ar,ru", autoDisplay: false },
-      "google_translate_element"
-    );
-  }
-</script>
-<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async defer></script>
 
 </head>
 <body class="min-h-screen">
 <!-- POPUNDER AD (kept high in body so its click-listener attaches before any user interaction) -->
-<div id="google_translate_element"></div>
 
 <canvas id="sand-canvas"></canvas>
 <!-- NAV -->
@@ -1228,6 +1210,7 @@ resize();
 init();
 })();
 </script>
+<script src="i18n.js"></script>
 <script src="script.js"></script>
 
 </body>
