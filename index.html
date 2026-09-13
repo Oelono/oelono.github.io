@@ -1,1781 +1,1234 @@
-/* =========================================================
-   Vaultframe — front-end logic
-   Products are loaded from data/products.json, which is the
-   single file Decap CMS edits (see admin/config.yml).
-   ========================================================= */
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oelono Blender Asset — Free Blender, Game & Roblox Assets</title>
+<link rel="icon" type="image/jpeg" href="we.png">
+<meta name="description" content="Oelono Blender Asset is a free, community-fed library of high-quality Blender assets, game builds and Roblox Studio files — characters, environments, shaders, animations, games and Roblox scripts, ready to drop into your project.">
+<meta name="keywords" content="Oelono Blender Asset, Oelono, Blender assets, free Blender models, Blender rigs, Roblox assets, Roblox scripts, Roblox Studio files, free games download, 3D assets library">
+<meta name="author" content="Oelono">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<!-- Tells Chrome NOT to show its own automatic "Translate this page?"
+     browser bar (the grey strip with the Google logo the user sees
+     when opening the site) — we already offer a translate control of
+     our own (the small dropdown in the header, wired up further down
+     via the Google Translate website widget), so the browser's
+     automatic offer is redundant and this suppresses it. -->
+<meta name="google" content="notranslate">
+<link rel="canonical" href="https://oelono.github.io/blender-free-asset/">
 
-// All three libraries are shown stacked at once (Blender → Games → Roblox),
-// so instead of a single "activeLibrary" + "activeCategory" the state now
-// tracks one active category per library. One search query is shared by
-// all three sections.
-const LIB_KEYS = ["blender", "games", "roblox"];
+<!-- Google Search Console ownership verification.
+     Replace the "content" value below with the real verification code
+     Google gives you in Search Console > Settings > Ownership verification > HTML tag. -->
+<meta name="google-site-verification" content="REPLACE_WITH_YOUR_GOOGLE_SEARCH_CONSOLE_CODE">
+<meta name="google-adsense-account" content="ca-pub-2827589221947089">
 
-const state = {
-  products: [],
-  activeCategory: { blender: "All", games: "All", roblox: "All" },
-  // Each library now has its own search query, so typing in one section
-  // never filters or scrolls the other two.
-  query: { blender: "", games: "", roblox: "" },
-  lang: "en",
-  // Comments + guestbook, loaded from data/comments.json (the single
-  // shared source of truth for the whole site — see loadComments()).
-  commentsData: { comments: {}, guestbook: [] },
-};
+<!-- Open Graph / Facebook / WhatsApp / Discord preview -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Oelono Blender Asset">
+<meta property="og:title" content="Oelono Blender Asset — Free Blender, Game & Roblox Assets">
+<meta property="og:description" content="A free, community-fed library of Blender assets, indie games and Roblox Studio files — characters, environments, shaders, animations and more, ready to drop into your project.">
+<meta property="og:url" content="https://oelono.github.io/blender-free-asset/">
+<meta property="og:image" content="https://oelono.github.io/blender-free-asset/106993307.jpg">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="ar_AR">
+<meta property="og:locale:alternate" content="ru_RU">
 
-/* =========================================================
-   UI strings — single English source. The site now relies on
-   automatic (browser/Google) translation instead of hand-maintained
-   per-language dictionaries, so we only need one set of strings.
-   ========================================================= */
-const strings = {
-    nav_library: "Library",
-    nav_how: "How it works",
-    nav_browse: "Browse assets",
-    search_placeholder: "Search assets — try “cyberpunk character”",
-    search_placeholder_blender: "Search the Blender library…",
-    search_placeholder_games: "Search My Games…",
-    search_placeholder_roblox: "Search Roblox Assets…",
-    chip_all: "All",
-    chip_characters: "Characters",
-    chip_environments: "Environments",
-    chip_shaders: "Shaders",
-    chip_animations: "Animations",
-    chip_assets: "Assets",
-    chip_full_games: "Full games",
-    chip_demos: "Demos / Prototypes",
-    chip_dlc: "Mods / DLC",
-    chip_scripts: "Scripts",
-    chip_models: "Models",
-    chip_maps: "Maps",
-    lib_blender: "Blender Assets",
-    lib_games: "My Games",
-    lib_roblox: "Roblox Assets",
-    library_heading: "The library",
-    library_sub: "Every file is inspected before it's listed. New drops weekly.",
-    library_heading_blender: "The Blender library",
-    library_sub_blender: "Every file is inspected before it's listed. New drops weekly.",
-    library_heading_games: "My Games",
-    library_sub_games: "Playable builds and prototypes I've made — free to download.",
-    library_heading_roblox: "Roblox Assets",
-    library_sub_roblox: "Scripts, models and maps for Roblox Studio (.rbxl / .rbxm).",
-    empty_title: "No assets match that search.",
-    empty_sub: "Try a different keyword or clear the category filter.",
-    how_heading: "How a download works",
-    how1_title: "Pick your asset",
-    how1_desc: "Browse or search any library, then open its download panel to see the specs.",
-    how2_title: "Go through 4 quick steps",
-    how2_desc: "A 10-second video ad, then 3 short sponsor pages — this is what keeps everything free.",
-    how3_title: "Grab the file",
-    how3_desc: "The direct download button unlocks right after step 4 — no login, no waiting rooms.",
-    footer_built: "Built by Oelono.",
-    footer_admin: "Admin",
-    footer_top: "Back to top",
-    footer_contact: "Contact",
-    footer_privacy: "Privacy Policy",
-    footer_terms: "Terms & Conditions",
-    nav_about: "About",
-    contact_heading: "Contact us",
-    contact_desc: "Got a question, a bug report, or a takedown request? Reach out any time — we read every message.",
-    modal_filesize_label: "File size",
-    modal_engine_label: "Render engine",
-    modal_license_label: "License",
-    modal_drive_btn: "Download final file",
-    tutorial_video_caption: "Stuck? Tap to watch how to download — with sound",
-    modal_hint_default: "A sponsor page opens in a new tab to keep this library free.",
-    modal_hint_ready: "Your file is ready — click below for the direct download.",
-    modal_hint_video: "Watching the ad — the next step unlocks automatically in a few seconds.",
-    unlock_unlocking: (s) => `Unlocking in ${s}s…`,
-    unlock_ready: "Continue to next step",
-    step_video_label: "Ad",
-    step_of_label: (n, total) => `Step ${n} of ${total}`,
-    ad_playing_label: "Advertisement playing…",
-    card_download: "Download",
-    results_count: (n) => `${n} asset${n === 1 ? "" : "s"}`,
-    nav_request_label: "Request a model",
-    card_preview3d: "3D preview",
-    card_preview_video: "Video preview",
-    card_report: "Report broken link",
-    viewer_title: "3D preview",
-    viewer_title_video: "Video preview",
-    viewer_hint: "Drag to rotate · scroll to zoom. This is a lightweight preview — the downloaded .blend file may include extra materials, rigs and lighting.",
-    viewer_hint_video: "A short preview clip of this asset.",
-    viewer_unavailable: "No 3D preview is available for this asset yet.",
-    report_title: "Report a broken link",
-    report_reason_label: "What's wrong?",
-    report_reason_dead: "Download link doesn't work",
-    report_reason_wrong: "File doesn't match the description",
-    report_reason_corrupt: "File is corrupted / won't open",
-    report_reason_other: "Something else",
-    report_note_label: "Details (optional)",
-    report_note_placeholder: "Anything that helps us fix it faster…",
-    report_submit: "Send report",
-    report_success: "Thanks — we'll take a look at this asset.",
-    request_title: "Request a model",
-    request_sub: "Tell us what you need — if it fits the library, we'll add it to the queue.",
-    request_desc_label: "What model do you need?",
-    request_desc_placeholder: "e.g. a low-poly medieval blacksmith shop with modular walls",
-    request_category_label: "Category",
-    request_contact_label: "Email (optional)",
-    request_contact_placeholder: "you@example.com",
-    request_ref_label: "Reference link (optional)",
-    request_ref_placeholder: "Artstation / Pinterest / image URL…",
-    request_submit: "Send request",
-    request_success: "Thanks — your request has been sent.",
-    request_error: "Please describe the model you need.",
-    comments_title: "Comments",
-    comment_name_label: "Your name",
-    comment_name_placeholder: "Anonymous",
-    comment_rating_label: "Your rating",
-    comment_text_label: "Your comment",
-    comment_text_placeholder: "Share your thoughts about this asset...",
-    comment_captcha_label: "Anti-bot check",
-    comment_captcha_placeholder: "Your answer",
-    comment_submit: "Post comment",
-    comment_success: "Thanks for your comment!",
-    comment_error_name: "Please enter your name.",
-    comment_error_text: "Please write a comment.",
-    comment_error_captcha: "Wrong answer to the anti-bot check.",
-    comment_error_profanity: "Please keep your comment respectful.",
-    comment_error_save: "Couldn't save your comment — please try again.",
-    comment_empty: "No comments yet. Be the first!",
-    comment_avg_text: (n) => `Average: ${n.toFixed(1)} / 5`,
-    wall_heading: "Community wall",
-    wall_subheading: "Leave a public message for the whole site — feedback, ideas, or just say hi. No login needed.",
-    wall_form_title: "Post a message",
-    wall_list_title: "Latest messages",
-    wall_text_placeholder: "Say something to the community…",
-    wall_submit: "Post message",
-    wall_empty: "No messages yet. Be the first to write on the wall!",
-    wall_success: "Your message is on the wall — thanks!",
-    wall_count_label: (n) => `${n} ${n === 1 ? "message" : "messages"}`,
-};
+<!-- Twitter / X Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Oelono Blender Asset — Free Blender, Game & Roblox Assets">
+<meta name="twitter:description" content="Free Blender assets, indie games and Roblox Studio files — every file checked before it's listed.">
+<meta name="twitter:image" content="https://oelono.github.io/blender-free-asset/106993307.jpg">
 
-
-/* =========================================================
-   Libraries — three top-level sections that share the same
-   product grid, search box and 4-step download modal, but each
-   has its own category-chip set and its own slice of data/products.json
-   (filtered via each product's "library" field: "blender" | "games" | "roblox").
-   ========================================================= */
-const LIBRARIES = {
-  blender: {
-    categories: ["All", "Characters", "Environments", "Shaders", "Animations", "Assets"],
-    chipKey: {
-      All: "chip_all", Characters: "chip_characters", Environments: "chip_environments",
-      Shaders: "chip_shaders", Animations: "chip_animations", Assets: "chip_assets",
+<!-- JSON-LD structured data: tells Google this site IS the "Oelono Blender Asset" brand,
+     so a search for that exact phrase can surface this site (and optionally a sitelinks
+     search box) directly in results. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://oelono.github.io/blender-free-asset/#website",
+      "url": "https://oelono.github.io/blender-free-asset/",
+      "name": "Oelono Blender Asset",
+      "alternateName": ["Oelono", "Oelono Blender Assets"],
+      "description": "Free library of Blender assets, indie games and Roblox Studio files.",
+      "inLanguage": ["en", "ar", "ru"],
+      "publisher": { "@id": "https://oelono.github.io/blender-free-asset/#organization" },
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://oelono.github.io/blender-free-asset/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
     },
-  },
-  games: {
-    categories: ["All", "Full Games", "Demos", "Mods"],
-    chipKey: { All: "chip_all", "Full Games": "chip_full_games", Demos: "chip_demos", Mods: "chip_dlc" },
-  },
-  roblox: {
-    categories: ["All", "Scripts", "Models", "Maps"],
-    chipKey: { All: "chip_all", Scripts: "chip_scripts", Models: "chip_models", Maps: "chip_maps" },
-  },
-};
-
-function t(key) {
-  return strings[key] ?? key;
+    {
+      "@type": "Organization",
+      "@id": "https://oelono.github.io/blender-free-asset/#organization",
+      "name": "Oelono Blender Asset",
+      "alternateName": "Oelono",
+      "url": "https://oelono.github.io/blender-free-asset/",
+      "logo": "https://oelono.github.io/blender-free-asset/106993307.jpg",
+      "sameAs": []
+    },
+    {
+      "@type": "CollectionPage",
+      "@id": "https://oelono.github.io/blender-free-asset/#collection",
+      "url": "https://oelono.github.io/blender-free-asset/",
+      "name": "Oelono Blender Asset — Free Blender, Game & Roblox Assets",
+      "isPartOf": { "@id": "https://oelono.github.io/blender-free-asset/#website" },
+      "about": { "@id": "https://oelono.github.io/blender-free-asset/#organization" }
+    }
+  ]
 }
+</script>
 
-// Per-library DOM refs — one grid/empty-state/results-count/chips-wrap/search
-// set for each of the three stacked library sections.
-const els = {};
-LIB_KEYS.forEach(lib => {
-  els[lib] = {
-    grid: document.getElementById(`product-grid-${lib}`),
-    emptyState: document.getElementById(`empty-state-${lib}`),
-    resultsCount: document.getElementById(`results-count-${lib}`),
-    chipsWrap: document.getElementById(`category-chips-${lib}`),
-    searchInput: document.getElementById(`search-input-${lib}`),
-  };
-});
+<!-- Google AdSense -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2827589221947089" crossorigin="anonymous"></script>
 
-document.getElementById("year").textContent = new Date().getFullYear();
-
-/* =========================================================
-   Static text fill-in
-   --------------------------------------------------------
-   The site content is written once, in English, and the manual
-   3-language translation system (and its ~400-line dictionary)
-   has been removed. Visitors who want another language use the
-   browser's/Google's automatic "Translate this page" feature
-   (see the Google Translate widget wired up in index.html) —
-   it covers every language, not just the three we used to
-   hand-maintain, and needs zero upkeep on our side.
-   ========================================================= */
-function applyStaticTranslations() {
-  document.querySelectorAll("[data-i18n]").forEach(el => {
-    const key = el.dataset.i18n;
-    const val = t(key);
-    if (typeof val === "string") el.textContent = val;
-  });
-  document.querySelectorAll("[data-i18n-placeholder]").forEach(el => {
-    el.placeholder = t(el.dataset.i18nPlaceholder);
-  });
-}
-
-function initLanguage() {
-  document.documentElement.lang = "en";
-  document.documentElement.dir = "ltr";
-  applyStaticTranslations();
-  renderCategoryChips();
-}
-
-/* =========================================================
-   Language switcher — plain EN/AR/RU buttons that drive Google's
-   translation engine via the same cookie the (hidden) Google
-   Translate widget reads on load. Clicking a button sets that
-   cookie and reloads the page; Google's script then translates the
-   whole DOM (and keeps re-translating anything script.js adds
-   later, like product titles, via its own MutationObserver) —
-   no per-string dictionary to maintain, no visible Google UI.
-   ========================================================= */
-const GOOGTRANS_COOKIE = "googtrans";
-
-function getActiveTranslateLang() {
-  const match = document.cookie.match(/(?:^|;\s*)googtrans=\/en\/([a-z-]+)/);
-  return match ? match[1] : "en";
-}
-
-function setActiveTranslateLang(lang) {
-  if (lang === "en") {
-    // Clear the cookie to go back to the original English page.
-    document.cookie = `${GOOGTRANS_COOKIE}=; path=/; max-age=0`;
-  } else {
-    document.cookie = `${GOOGTRANS_COOKIE}=/en/${lang}; path=/; max-age=31536000`;
-  }
-  window.location.reload();
-}
-
-function initLangSwitcher() {
-  const wrap = document.getElementById("lang-switcher");
-  if (!wrap) return;
-  const active = getActiveTranslateLang();
-  wrap.querySelectorAll("button[data-lang]").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.lang === active);
-  });
-  wrap.addEventListener("click", (e) => {
-    const btn = e.target.closest("button[data-lang]");
-    if (!btn || btn.classList.contains("active")) return;
-    setActiveTranslateLang(btn.dataset.lang);
-  });
-}
-initLangSwitcher();
-
-/* ---------- load data ---------- */
-async function loadProducts() {
-  renderSkeletons(6);
-  try {
-    const res = await fetch("data/products.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to load products.json");
-    const json = await res.json();
-    state.products = (json.products || []).filter(p => p && p.title);
-    // Normalize CMS paths ("/blender-free-asset/assets/..." -> "assets/...")
-    // so thumbnails/preview images always resolve, wherever the site is hosted.
-    state.products.forEach(p => {
-      ["thumbnail", "previewImage", "previewGif", "modelUrl", "posterImage", "previewVideoUrl"].forEach(k => {
-        if (p[k]) p[k] = normalizeAssetPath(p[k]);
+<!-- Google reCAPTCHA v2 (comments anti-bot check) -->
+<script>
+  // Widget IDs are filled in once Google's script calls this back,
+  // so script.js knows which rendered widget belongs to which form.
+  window.commentRecaptchaWidgetId = null;
+  window.wallRecaptchaWidgetId = null;
+  window.onRecaptchaLoad = function () {
+    if (document.getElementById("comment-recaptcha")) {
+      window.commentRecaptchaWidgetId = grecaptcha.render("comment-recaptcha", {
+        sitekey: "6Ldf664tAAAAAPVxyQm9E3usyjLttWDBCq5-tCXE",
+        theme: "dark",
       });
-    });
-  } catch (err) {
-    console.error(err);
-    state.products = [];
-  }
-  render();
-}
-
-function renderSkeletons(n) {
-  const skeletonHtml = Array.from({ length: n }).map(() => `
-    <div class="card rounded-xl overflow-hidden">
-      <div class="skeleton h-44 w-full"></div>
-      <div class="p-5 space-y-3">
-        <div class="skeleton h-4 w-3/4 rounded"></div>
-        <div class="skeleton h-3 w-full rounded"></div>
-        <div class="skeleton h-3 w-5/6 rounded"></div>
-      </div>
-    </div>
-  `).join("");
-  LIB_KEYS.forEach(lib => {
-    if (els[lib].grid) els[lib].grid.innerHTML = skeletonHtml;
-  });
-}
-
-/* ---------- filtering ---------- */
-function getFiltered(lib) {
-  const q = state.query[lib].trim().toLowerCase();
-  return state.products.filter(p => {
-    // Products created before the "library" field existed are treated as
-    // Blender assets, so nothing already in data/products.json disappears.
-    const productLibrary = p.library || "blender";
-    const matchesLibrary = productLibrary === lib;
-    const matchesCategory = state.activeCategory[lib] === "All" || p.category === state.activeCategory[lib];
-    const haystack = `${p.title} ${p.description} ${p.category}`.toLowerCase();
-    const matchesQuery = q === "" || haystack.includes(q);
-    return matchesLibrary && matchesCategory && matchesQuery;
-  });
-}
-
-/* ---------- render ---------- */
-// Renders all three stacked library sections. Each section is independent
-// (its own grid/empty-state/results-count) but shares the one search query.
-function render() {
-  LIB_KEYS.forEach(lib => renderLibrarySection(lib));
-  // Comments button counts are shared/global across all cards on the page.
-  refreshCommentCounts();
-}
-
-function renderLibrarySection(lib) {
-  const { grid, emptyState, resultsCount } = els[lib];
-  if (!grid) return;
-
-  const items = getFiltered(lib);
-  if (resultsCount) resultsCount.textContent = items.length ? t("results_count")(items.length) : "";
-
-  if (items.length === 0) {
-    grid.innerHTML = "";
-    if (emptyState) emptyState.classList.remove("hidden");
-    return;
-  }
-  if (emptyState) emptyState.classList.add("hidden");
-
-  grid.innerHTML = items.map(cardTemplate).join("");
-
-  grid.querySelectorAll("[data-download-id]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const product = state.products.find(p => p.id === btn.dataset.downloadId);
-      if (product) openModal(product);
-    });
-  });
-
-  grid.querySelectorAll("[data-viewer-id]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const product = state.products.find(p => p.id === btn.dataset.viewerId);
-      if (product) openViewerModal(product);
-    });
-  });
-
-  // Inline 3D preview: load the GLB/GLTF only when the card is hovered.
-  // Debounced so quick pointer passes don't flash a blank card; the thumbnail
-  // stays visible until the model has actually finished loading.
-  grid.querySelectorAll(".card-media").forEach(media => {
-    const viewer = media.querySelector(".card-3d-viewer");
-    if (!viewer) return;
-
-    let enterTimer = null;
-    let leaveTimer = null;
-    let safetyTimer = null;
-
-    const isVideo = viewer.tagName === "VIDEO";
-
-    const loadViewer = () => {
-      if (leaveTimer) { clearTimeout(leaveTimer); leaveTimer = null; }
-      enterTimer = setTimeout(() => {
-        enterTimer = null;
-        if (!viewer.dataset.loaded) {
-          const src = viewer.dataset.modelSrc;
-          if (src) {
-            viewer.setAttribute("src", src);
-            viewer.dataset.loaded = "1";
-            media.classList.add("model-loading");
-            // When the media has finished streaming, mark ready + show it.
-            // model-viewer fires "load"; <video> fires "loadeddata".
-            viewer.addEventListener(isVideo ? "loadeddata" : "load", () => {
-              media.classList.remove("model-loading");
-              media.classList.add("model-ready");
-              if (isVideo) viewer.play().catch(() => {});
-            }, { once: true });
-            viewer.addEventListener("error", () => {
-              media.classList.remove("model-loading");
-            }, { once: true });
-            // Safety: if the media hasn't loaded in 15s, drop the spinner
-            // so the card doesn't look frozen.
-            safetyTimer = setTimeout(() => {
-              media.classList.remove("model-loading");
-            }, 15000);
-          } else {
-            media.classList.add("model-ready");
-          }
-        } else if (isVideo) {
-          viewer.currentTime = 0;
-          viewer.play().catch(() => {});
-        }
-        media.classList.add("show-3d");
-      }, 120);
-    };
-
-    const hideViewer = () => {
-      if (enterTimer) { clearTimeout(enterTimer); enterTimer = null; }
-      if (safetyTimer) { clearTimeout(safetyTimer); safetyTimer = null; }
-      leaveTimer = setTimeout(() => {
-        leaveTimer = null;
-        media.classList.remove("show-3d");
-        if (isVideo) viewer.pause();
-      }, 120);
-    };
-
-    media.addEventListener("pointerenter", loadViewer);
-    media.addEventListener("pointerleave", hideViewer);
-  });
-
-  grid.querySelectorAll("[data-report-id]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const product = state.products.find(p => p.id === btn.dataset.reportId);
-      if (product) openReportModal(product);
-    });
-  });
-
-  // Comments button on each card
-  grid.querySelectorAll("[data-comments-id]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const product = state.products.find(p => p.id === btn.dataset.commentsId);
-      if (product) openCommentsModal(product);
-    });
-  });
-}
-
-function cardTemplate(p) {
-  const thumb = p.thumbnail || "https://placehold.co/600x400/0B0C10/00F0FF?text=Vaultframe";
-  const preview = p.previewImage || p.previewGif || ""; // optional hover preview (image or GIF)
-  const hasModel = !!p.modelUrl; // optional GLB/GLTF for the 3D viewer
-  // Optional MP4 preview — only used when there's no 3D model (modelUrl wins if both are set).
-  const hasVideo = !hasModel && !!p.previewVideoUrl;
-  const hasMedia = hasModel || hasVideo; // either a 3D model OR a video preview
-  return `
-    <article class="card rounded-xl overflow-hidden group">
-      <div class="card-media relative h-44${hasMedia ? " has-3d" : ""}${preview ? " has-preview" : ""}">
-        <img class="card-thumb" src="${escapeAttr(thumb)}" alt="${escapeAttr(p.title)}" loading="lazy" onerror="this.onerror=null; this.src='https://placehold.co/600x400/0B0C10/00F0FF?text=Vaultframe'">
-        ${preview ? `<img class="card-preview" src="${escapeAttr(preview)}" alt="" loading="lazy" aria-hidden="true" onerror="this.closest('.card-media').classList.remove('has-preview'); this.remove()">` : ""}
-        ${hasModel ? `<model-viewer class="card-3d-viewer" data-model-src="${escapeAttr(p.modelUrl)}" alt="3D preview of ${escapeAttr(p.title)}" camera-controls auto-rotate rotation-per-second="18deg" interaction-prompt="none" shadow-intensity="0.8" exposure="1"></model-viewer>` : ""}
-        ${hasVideo ? `<video class="card-3d-viewer card-video-preview" data-model-src="${escapeAttr(p.previewVideoUrl)}" muted loop playsinline preload="none" aria-hidden="true"></video>` : ""}
-        <div class="absolute top-3 left-3 flex gap-1.5">
-          ${(p.blenderVersion || p.platform) ? `<span class="badge px-2 py-1 rounded">${escapeHtml(p.blenderVersion || p.platform)}</span>` : ""}
-        </div>
-        <div class="absolute top-3 right-3">
-          ${p.engine ? `<span class="badge px-2 py-1 rounded" style="border-color:rgba(157,78,221,0.4); color:#C79BFF; background:rgba(157,78,221,0.08);">${escapeHtml(p.engine)}</span>` : ""}
-        </div>
-      </div>
-      <div class="p-5">
-        <div class="text-xs text-[var(--ink-dim)] mb-1.5">${escapeHtml(p.category || "")}</div>
-        <h3 class="font-semibold leading-snug mb-1.5">${escapeHtml(p.title)}</h3>
-        <p class="text-sm text-[var(--ink-dim)] line-clamp-2 mb-4">${escapeHtml(p.description || "")}</p>
-        <div class="flex items-center justify-between">
-          <span class="text-xs text-[var(--ink-dim)]">${escapeHtml(p.fileSize || "")}</span>
-          <button data-download-id="${escapeAttr(p.id)}" class="btn-primary text-xs px-4 py-2 rounded-md">${escapeHtml(t("card_download"))}</button>
-        </div>
-        <div class="card-actions-row">
-          <div style="display:flex;align-items:center;gap:8px;">
-            ${hasMedia
-              ? `<button data-viewer-id="${escapeAttr(p.id)}" class="btn-3d">
-                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
-                   ${escapeHtml(hasModel ? t("card_preview3d") : t("card_preview_video"))}
-                 </button>`
-              : `<span></span>`}
-            <button data-comments-id="${escapeAttr(p.id)}" class="comment-count-btn">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-              <span class="cmt-count" data-cmt-for="${escapeAttr(p.id)}">0</span>
-            </button>
-          </div>
-          <button data-report-id="${escapeAttr(p.id)}" class="btn-ghost-sm report-link">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-            ${escapeHtml(t("card_report"))}
-          </button>
-        </div>
-      </div>
-    </article>
-  `;
-}
-
-/* Normalize image/file paths coming from the CMS.
-   The Decap CMS saves uploads as "/blender-free-asset/assets/uploads/x.png"
-   (absolute, repo-based). That only works when the site is served from the
-   same URL. Convert it to a relative "assets/uploads/x.png" so thumbnails
-   work everywhere (GitHub Pages, custom domain, local preview). */
-function normalizeAssetPath(p = "") {
-  if (!p) return "";
-  if (/^(https?:|data:|blob:)/i.test(p)) return p;          // external / inline
-  return p.replace(/^\/?blender-free-asset\//i, "").replace(/^\//, "");
-}
-
-function escapeHtml(str = "") {
-  return String(str).replace(/[&<>"']/g, s => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[s]));
-}
-function escapeAttr(str = "") { return escapeHtml(str); }
-
-/* ---------- search + chips + libraries ---------- */
-// Each library has its own search box, so typing in it only re-renders
-// that library's own grid — no jumping/scrolling caused by other sections.
-LIB_KEYS.forEach(lib => {
-  const input = els[lib].searchInput;
-  if (!input) return;
-  input.addEventListener("input", (e) => {
-    state.query[lib] = e.target.value;
-    renderLibrarySection(lib);
-  });
-});
-
-// Builds the category-chip row for every library's section (all three are
-// visible at once, so all three chip rows are built every time — on load
-// and whenever the language changes).
-function renderCategoryChips() {
-  LIB_KEYS.forEach(lib => {
-    const chipsWrap = els[lib].chipsWrap;
-    if (!chipsWrap) return;
-    const libDef = LIBRARIES[lib];
-    chipsWrap.innerHTML = libDef.categories.map(cat => {
-      const key = libDef.chipKey[cat] || "";
-      const label = key ? t(key) : (cat || "");
-      const isActive = cat === state.activeCategory[lib];
-      return `<button data-cat="${escapeAttr(cat)}" class="chip${isActive ? " active" : ""} px-3.5 py-1.5 rounded-full text-xs">${escapeHtml(label)}</button>`;
-    }).join("");
-  });
-}
-
-// Each library's chip row only filters that library's own grid.
-LIB_KEYS.forEach(lib => {
-  const chipsWrap = els[lib].chipsWrap;
-  if (!chipsWrap) return;
-  chipsWrap.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-cat]");
-    if (!btn) return;
-    chipsWrap.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
-    btn.classList.add("active");
-    state.activeCategory[lib] = btn.dataset.cat;
-    renderLibrarySection(lib);
-  });
-});
-
-/* =========================================================
-   Download modal — ad-monetized unlock flow
-   ========================================================= */
-
-const modal = document.getElementById("download-modal");
-const modalBadge = document.getElementById("modal-badge");
-const modalTitle = document.getElementById("modal-title");
-const modalDesc = document.getElementById("modal-desc");
-const modalFilesize = document.getElementById("modal-filesize");
-const modalEngine = document.getElementById("modal-engine");
-const modalLicense = document.getElementById("modal-license");
-const unlockBtn = document.getElementById("unlock-btn");
-const unlockLabel = document.getElementById("unlock-label");
-const unlockRingProgress = document.getElementById("unlock-ring-progress");
-const driveBtn = document.getElementById("drive-btn");
-const modalHint = document.getElementById("modal-hint");
-const modalClose = document.getElementById("modal-close");
-const stepIndicator = document.getElementById("step-indicator");
-const progressBar = document.getElementById("progress-bar");
-const progressLabel = document.getElementById("progress-label");
-const progressPercent = document.getElementById("progress-percent");
-const adVideoStep = document.getElementById("ad-video-step");
-const adVideo = document.getElementById("ad-video");
-const adVideoFallback = document.getElementById("ad-video-fallback");
-const adVideoCountdownEl = document.getElementById("ad-video-countdown");
-const adVideoCaption = document.getElementById("ad-video-caption");
-const tutorialPanel = document.getElementById("tutorial-panel");
-const tutorialVideo = document.getElementById("tutorial-video");
-const tutorialVideoToggle = document.getElementById("tutorial-video-toggle");
-
-// Optional site-wide fallback tutorial/explainer video, used when a product
-// doesn't define its own `tutorialVideoUrl`. Leave empty (default) to keep
-// the side panel fully optional/off unless a product sets one via the CMS.
-window.DEFAULT_TUTORIAL_VIDEO_URL = window.DEFAULT_TUTORIAL_VIDEO_URL || "";
-
-// Shows/hides the optional "how to download" side panel for the product
-// currently open in the modal. Starts muted+looping (a silent preview);
-// clicking the overlay unmutes, shows native controls, and plays with sound.
-function setupTutorialPanel(product) {
-  const src = (product && product.tutorialVideoUrl) || window.DEFAULT_TUTORIAL_VIDEO_URL || "";
-  tutorialPanel.classList.remove("played");
-  tutorialVideo.pause();
-  tutorialVideo.controls = false;
-  tutorialVideo.muted = true;
-  tutorialVideo.currentTime = 0;
-
-  if (!src) {
-    tutorialPanel.classList.add("hidden");
-    tutorialVideo.removeAttribute("src");
-    return;
-  }
-
-  tutorialPanel.classList.remove("hidden");
-  tutorialVideo.src = src;
-  tutorialVideo.load();
-  tutorialVideo.play().catch(() => { /* silent autoplay can still be blocked on some browsers; the tap-to-play overlay covers that case */ });
-}
-
-if (tutorialVideoToggle) {
-  tutorialVideoToggle.addEventListener("click", () => {
-    tutorialVideo.muted = false;
-    tutorialVideo.loop = false;
-    tutorialVideo.controls = true;
-    tutorialVideo.currentTime = 0;
-    tutorialVideo.play().catch(() => { /* no-op — user gesture should satisfy autoplay policies here */ });
-    tutorialPanel.classList.add("played");
-  });
-}
-
-// Optional site-wide fallback video ad, used when a product doesn't define
-// its own `adVideoUrl`. Point this at an .mp4 you own/have rights to run as
-// a pre-download ad, e.g. "assets/ads/default-ad.mp4". Left empty by default
-// so, out of the box, step 1 simply shows the AdSense unit for 10s instead.
-window.DEFAULT_AD_VIDEO_URL = window.DEFAULT_AD_VIDEO_URL || "";
-
-// The full gated flow, for EVERY library (Blender / Games / Roblox):
-//   Step 1 -> 10s video ad (auto-plays, auto-advances, no click needed)
-//   Step 2, 3, 4 -> a sponsor link opens in a new tab, then a 10s dwell
-//                   countdown before the visitor can continue
-// After step 4, the "Download final file" button is revealed.
-const GATE_TOTAL_STEPS = 4;
-const VIDEO_STEP_SECONDS = 10;
-const COUNTDOWN_SECONDS = 10;
-const RING_CIRCUMFERENCE = 2 * Math.PI * 15.5; // matches r=15.5 in the SVG
-let countdownTimer = null;
-let videoTimer = null;
-let activeProduct = null;
-// activeStage counts completed gate steps, 0..GATE_TOTAL_STEPS.
-// 0 = nothing done. 1 = the video ad finished. 2..4 = that many sponsor
-// steps finished on top of the video. At 4, the final button is revealed.
-let activeStage = 0;
-let sponsorLinksPadded = [];
-// Reference to the sponsor tab opened for the stage currently being timed.
-// Polled every tick so a tab closed before COUNTDOWN_SECONDS elapses
-// cancels credit for that stage instead of silently letting it pass.
-let sponsorWindow = null;
-
-const closedEarlyHint = "That sponsor tab was closed too early — reopen it and keep it open for the full countdown.";
-const reopenLabel = "Reopen sponsor link";
-const popupBlockedHint = "Your browser blocked that tab from opening — allow pop-ups for this site, then try again.";
-
-// Returns the ordered list of sponsor links for a product.
-// Supports the new "sponsorLinks" list field, and falls back to the
-// old single "monetizedLink" field for products created before this change.
-function getSponsorLinks(product) {
-  if (Array.isArray(product.sponsorLinks) && product.sponsorLinks.length) {
-    return product.sponsorLinks
-      .map(link => (typeof link === "string" ? link : link.url))
-      .filter(Boolean);
-  }
-  return product.monetizedLink ? [product.monetizedLink] : [];
-}
-
-// Steps 2, 3 and 4 of the gate each need one sponsor link. Whatever the
-// product actually has configured (1, 2, 3, 4...) gets cycled/repeated so
-// there are always exactly `count` (3) of them — if a product has zero
-// sponsor links at all, those steps just become timed waits with no tab.
-function getPaddedSponsorLinks(product, count) {
-  const links = getSponsorLinks(product);
-  if (!links.length) return new Array(count).fill(null);
-  return Array.from({ length: count }, (_, i) => links[i % links.length]);
-}
-
-function stageHintText(n, total) {
-  return `Step ${n} of ${total} — opening sponsor link in a new tab…`;
-}
-
-const stepReadyLabel = (n) => `Step ${n} complete`;
-const driveStepLabel = "Drive file download";
-
-// Renders a row of step pills: Step 1, Step 2, ... Step N, Drive download.
-// - completed steps: filled/checked
-// - the current step: highlighted
-// - future steps: dim
-// This is purely visual state driven by activeStage, which only ever
-// advances by exactly one stage per confirmed click (see unlockBtn handler
-// below) — so there is no way to reach a later step without the button
-// for every prior step actually being clicked and its countdown finished.
-// Renders a row of step pills: Step 1 (video ad), Step 2, Step 3, Step 4,
-// then a final "Download" pill. currentStage counts steps already completed
-// (0..totalSteps). Purely visual state — activeStage only ever advances by
-// exactly one per verified step, so there's no way to reach a later pill
-// without every prior step (including the 10s video) actually finishing.
-function renderStepIndicator(totalSteps, currentStage) {
-  if (!stepIndicator) return;
-  if (totalSteps <= 0) {
-    stepIndicator.innerHTML = "";
-    return;
-  }
-  const pills = [];
-  for (let i = 1; i <= totalSteps; i++) {
-    const done = i <= currentStage;
-    const isVideo = i === 1;
-    const icon = done ? "✓" : (isVideo ? "🎬" : i);
-    const label = isVideo ? (t("step_video_label")) : `Step ${i}`;
-    pills.push(`
-      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
-        style="${done
-          ? "background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.4); color:var(--ink);"
-          : "background:transparent; border-color:var(--line); color:var(--ink-dim);"}">
-        ${icon}
-        <span>${label}</span>
-      </div>
-    `);
-  }
-  const driveDone = currentStage >= totalSteps;
-  pills.push(`
-    <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
-      style="${driveDone
-        ? "background:rgba(157,78,221,0.12); border-color:rgba(157,78,221,0.4); color:#C79BFF;"
-        : "background:transparent; border-color:var(--line); color:var(--ink-dim);"}">
-      ${driveDone ? "✓" : "🔒"}
-      <span>${driveStepLabel}</span>
-    </div>
-  `);
-  stepIndicator.innerHTML = pills.join("");
-}
-
-const remainingStepsText = (n) => n === 1 ? "Almost done — 1 step left" : `${n} steps left`;
-const allDoneText = "All steps complete!";
-
-// Overall progress across every step, including the final "in progress"
-// countdown fraction — so the bar creeps forward smoothly during each
-// wait too, not just in jumps when a step completes.
-function updateOverallProgress(totalSponsorStages, currentStage, countdownFraction) {
-  if (!progressBar) return;
-  const totalUnits = totalSponsorStages + 1; // +1 for the final drive unlock
-  const completedUnits = currentStage + (countdownFraction || 0);
-  const pct = totalUnits > 0 ? Math.min(100, Math.round((completedUnits / totalUnits) * 100)) : 0;
-
-  progressBar.style.width = `${pct}%`;
-  progressPercent.textContent = `${pct}%`;
-
-  const remaining = totalSponsorStages - currentStage;
-  progressLabel.textContent = remaining > 0
-    ? remainingStepsText(remaining)
-    : allDoneText;
-}
-
-function openModal(product) {
-  activeProduct = product;
-  activeStage = 0;
-  sponsorLinksPadded = getPaddedSponsorLinks(product, GATE_TOTAL_STEPS - 1); // 3 sponsor steps
-
-  modalBadge.textContent = product.blenderVersion || product.platform || "";
-  modalTitle.textContent = product.title;
-  modalDesc.textContent = product.description || "";
-  modalFilesize.textContent = product.fileSize || "—";
-  modalEngine.textContent = product.engine || product.platform || "—";
-  modalLicense.textContent = product.license || "—";
-
-  // reset state
-  driveBtn.classList.add("hidden");
-  driveBtn.classList.remove("flex");
-  unlockBtn.classList.add("hidden");
-  unlockBtn.disabled = true;
-  unlockRingProgress.style.strokeDasharray = `${RING_CIRCUMFERENCE}`;
-  unlockRingProgress.style.strokeDashoffset = "0";
-
-  renderStepIndicator(GATE_TOTAL_STEPS, 0);
-  updateOverallProgress(GATE_TOTAL_STEPS, 0, 0);
-
-  setupTutorialPanel(product);
-
-  modal.classList.remove("hidden");
-  modal.classList.add("flex");
-  document.body.style.overflow = "hidden";
-
-  startVideoGate();
-}
-
-/* ---------- Step 1: the 10-second video ad ---------- */
-function startVideoGate() {
-  adVideoStep.classList.remove("hidden");
-  unlockBtn.classList.add("hidden");
-  driveBtn.classList.add("hidden");
-  modalHint.textContent = t("modal_hint_video");
-  if (adVideoCaption) adVideoCaption.textContent = `${t("step_of_label")(1, GATE_TOTAL_STEPS)} — ${t("ad_playing_label")}`;
-
-  const src = (activeProduct && activeProduct.adVideoUrl) || window.DEFAULT_AD_VIDEO_URL || "";
-  const showFallback = () => {
-    adVideo.classList.add("hidden");
-    adVideoFallback.classList.remove("hidden");
-    adVideoFallback.style.display = "flex";
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* AdSense not loaded (adblock) — the 10s timer still runs */ }
+    }
+    if (document.getElementById("wall-recaptcha")) {
+      window.wallRecaptchaWidgetId = grecaptcha.render("wall-recaptcha", {
+        sitekey: "6Ldf664tAAAAAPVxyQm9E3usyjLttWDBCq5-tCXE",
+        theme: "dark",
+      });
+    }
   };
+</script>
+<script src="https://www.google.com/recaptcha/api.js?onload=onRecaptchaLoad&render=explicit" async defer></script>
 
-  adVideoFallback.classList.add("hidden");
-  adVideoFallback.style.display = "none";
-  adVideo.classList.remove("hidden");
-  adVideo.onerror = showFallback;
-  if (src) {
-    adVideo.src = src;
-    adVideo.load();
-    adVideo.play().catch(() => { /* autoplay can be blocked; the countdown still runs regardless */ });
-  } else {
-    showFallback();
-  }
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+--bg:#0A0A0A;
+--bg-raised:#141414;
+--line:#262626;
+--ink:#FFFFFF;
+--ink-dim:#8F8F8F;
+}
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+background:var(--bg);
+color:var(--ink);
+font-family:'Inter',sans-serif;
+overflow-x:hidden;
+}
+.font-display{ font-family:'Space Grotesk',sans-serif; }
 
-  let remaining = VIDEO_STEP_SECONDS;
-  adVideoCountdownEl.textContent = remaining;
-  clearInterval(videoTimer);
-  videoTimer = setInterval(() => {
-    remaining -= 1;
-    adVideoCountdownEl.textContent = Math.max(remaining, 0);
-    updateOverallProgress(GATE_TOTAL_STEPS, 0, 1 - Math.max(remaining, 0) / VIDEO_STEP_SECONDS);
-    if (remaining <= 0) {
-      clearInterval(videoTimer);
-      try { adVideo.pause(); } catch (e) { /* no-op */ }
-      adVideoStep.classList.add("hidden");
-      activeStage = 1;
-      renderStepIndicator(GATE_TOTAL_STEPS, activeStage);
-      updateOverallProgress(GATE_TOTAL_STEPS, activeStage, 0);
-      beginSponsorStage();
-    }
-  }, 1000);
+/* ---------- hero entrance: one orchestrated sequence ---------- */
+@keyframes rise{
+from{ opacity:0; transform:translateY(14px); }
+to{ opacity:1; transform:translateY(0); }
+}
+.reveal{ animation: rise .7s cubic-bezier(.22,.9,.3,1) both; }
+.reveal-1{ animation-delay:.05s; }
+.reveal-2{ animation-delay:.18s; }
+.reveal-3{ animation-delay:.31s; }
+.reveal-4{ animation-delay:.44s; }
+
+@keyframes drawline{
+from{ width:0; }
+to{ width:56px; }
+}
+.hero-rule{
+height:2px;
+background:var(--ink);
+animation: drawline .8s cubic-bezier(.22,.9,.3,1) .55s both;
 }
 
-/* ---------- Steps 2–4: sponsor link + 10s dwell countdown each ---------- */
-function beginSponsorStage() {
-  unlockBtn.classList.remove("hidden");
-  unlockBtn.disabled = false;
-  unlockRingProgress.style.strokeDashoffset = "0";
-  unlockLabel.textContent = t("unlock_ready");
-  modalHint.textContent = stageHintText(activeStage + 1, GATE_TOTAL_STEPS);
+.btn-primary{
+background: var(--ink);
+color:#0A0A0A;
+font-weight:600;
+transition: transform .16s cubic-bezier(.22,.9,.3,1), box-shadow .16s ease;
 }
-
-// windowRef is the tab opened for the stage we're timing (or null if this
-// stage has no sponsor link). The interval checks windowRef.closed on every
-// tick — if the visitor closes that tab before the countdown finishes, the
-// stage is cancelled instead of quietly being granted anyway.
-function startCountdown(windowRef) {
-  sponsorWindow = windowRef || null;
-  const total = COUNTDOWN_SECONDS;
-  let remaining = total;
-  unlockLabel.textContent = t("unlock_unlocking")(remaining);
-
-  clearInterval(countdownTimer);
-  countdownTimer = setInterval(() => {
-    if (sponsorWindow && sponsorWindow.closed) {
-      clearInterval(countdownTimer);
-      handleClosedEarly();
-      return;
-    }
-
-    remaining -= 1;
-    const progress = 1 - remaining / total;
-    unlockRingProgress.style.strokeDashoffset = `${RING_CIRCUMFERENCE * progress}`;
-    updateOverallProgress(GATE_TOTAL_STEPS, activeStage - 1, progress);
-
-    if (remaining <= 0) {
-      clearInterval(countdownTimer);
-      sponsorWindow = null;
-      onCountdownVerified();
-    } else {
-      unlockLabel.textContent = t("unlock_unlocking")(remaining);
-    }
-  }, 1000);
+.btn-primary:hover{
+transform: translateY(-1px) scale(1.015);
+box-shadow: 0 10px 26px -12px rgba(255,255,255,0.25);
 }
-
-// Runs once a stage's countdown finishes without its tab closing early.
-// If all 4 gate steps (video + 3 sponsor stages) are now verified, reveal
-// the final direct-download button; otherwise re-enable the button so the
-// visitor can move on to the next stage.
-function onCountdownVerified() {
-  if (activeStage >= GATE_TOTAL_STEPS) {
-    driveBtn.href = (activeProduct && (activeProduct.downloadUrl || activeProduct.driveLink)) || "#";
-    unlockBtn.classList.add("hidden");
-    driveBtn.classList.remove("hidden");
-    driveBtn.classList.add("flex");
-    modalHint.textContent = t("modal_hint_ready");
-    updateOverallProgress(GATE_TOTAL_STEPS, activeStage, 0);
-  } else {
-    unlockBtn.disabled = false;
-    unlockLabel.textContent = t("unlock_ready");
-  }
+.btn-primary:active{ transform: translateY(0) scale(.99); }
+.btn-primary:disabled{
+opacity:.3;
+cursor:not-allowed;
+transform:none;
+box-shadow:none;
 }
-
-// Called when the sponsor tab for the stage being timed closes before the
-// countdown completes. Rolls that stage's "done" credit back (never below 1,
-// since the video step can't be undone) so the click handler re-opens the
-// same link on the next click instead of skipping ahead.
-function handleClosedEarly() {
-  sponsorWindow = null;
-  if (!activeProduct) return;
-
-  activeStage = Math.max(1, activeStage - 1);
-  renderStepIndicator(GATE_TOTAL_STEPS, activeStage);
-  updateOverallProgress(GATE_TOTAL_STEPS, activeStage, 0);
-
-  unlockRingProgress.style.strokeDashoffset = "0";
-  unlockBtn.disabled = false;
-  unlockLabel.textContent = reopenLabel;
-  modalHint.textContent = closedEarlyHint;
+.card{
+background: var(--bg-raised);
+border:1px solid var(--line);
+transition: border-color .2s cubic-bezier(.22,.9,.3,1), transform .2s cubic-bezier(.22,.9,.3,1);
 }
-
-unlockBtn.addEventListener("click", () => {
-  if (unlockBtn.disabled || !activeProduct || activeStage < 1) return;
-
-  // activeStage is 1, 2 or 3 here (video already done); the sponsor link
-  // for the step about to be attempted is at index (activeStage - 1) in
-  // the padded 3-link array.
-  const link = sponsorLinksPadded[activeStage - 1];
-
-  // Open this stage's sponsor link in a new tab. window.open returns null
-  // when the browser's pop-up blocker prevents the tab from opening at
-  // all — noopener means we can't detect that as "closed", so we check
-  // for null explicitly instead of pretending the tab exists.
-  let openedWindow = null;
-  if (link) {
-    openedWindow = window.open(link, "_blank");
-    if (!openedWindow) {
-      unlockLabel.textContent = t("unlock_ready");
-      modalHint.textContent = popupBlockedHint;
-      unlockBtn.disabled = false;
-      return; // stage not credited — nothing to time, nothing advances
-    }
-  }
-
-  activeStage += 1;
-  renderStepIndicator(GATE_TOTAL_STEPS, activeStage);
-  unlockBtn.disabled = true;
-
-  // activeStage only ever moves forward by 1 here, and the button stays
-  // disabled until a fresh countdown finishes without the tab being closed
-  // early, so repeatedly clicking / closing early cannot fast-forward past
-  // a step — whether it's step 2, 3, or the final step 4.
-  modalHint.textContent = (activeStage < GATE_TOTAL_STEPS)
-    ? stageHintText(activeStage + 1, GATE_TOTAL_STEPS)
-    : t("modal_hint_default");
-  startCountdown(openedWindow);
-});
-
-function closeModal() {
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
-  document.body.style.overflow = "";
-  clearInterval(countdownTimer);
-  clearInterval(videoTimer);
-  try { adVideo.pause(); } catch (e) { /* no-op */ }
-  adVideoStep.classList.add("hidden");
-  try { tutorialVideo.pause(); } catch (e) { /* no-op */ }
-  tutorialPanel.classList.add("hidden");
-  tutorialPanel.classList.remove("played");
-  activeProduct = null;
+.card:hover{
+border-color: var(--ink);
+transform: translateY(-4px);
 }
+/* ---------- Discord-style member badge (About modal) ---------- */
+.team-avatar{
+width:76px; height:76px; border-radius:9999px;
+display:flex; align-items:center; justify-content:center;
+font-family:'Tajawal',sans-serif; font-weight:700; font-size:26px;
+color:#0A0A0A; flex-shrink:0;
+}
+.discord-badge{
+display:inline-flex; align-items:center; gap:10px;
+background:linear-gradient(90deg,#1e1e24 0%,#2b1a3a 60%,#3a1f4d 100%);
+border:1px solid var(--line);
+border-radius:10px;
+padding:8px 14px 8px 8px;
+overflow:hidden;
+position:relative;
+text-decoration:none !important;
+transition: border-color .16s ease, transform .16s ease;
+}
+.discord-badge:hover{ border-color:#8a5cf6; transform:translateY(-2px); }
+.discord-badge img.db-avatar{
+width:40px; height:40px; border-radius:9999px; object-fit:cover; flex-shrink:0;
+border:2px solid rgba(255,255,255,0.08);
+}
+.discord-badge .db-name{
+font-family:'Tajawal',sans-serif; font-weight:700; font-size:15px; color:#fff;
+white-space:nowrap;
+}
+.discord-badge .db-tag{
+display:inline-flex; align-items:center; gap:4px;
+background:rgba(255,255,255,0.08); border-radius:6px;
+padding:3px 8px; font-size:11px; font-weight:700; color:#e7e7ea;
+letter-spacing:.3px;
+}
+.chip{
+border:1px solid var(--line);
+color:var(--ink-dim);
+transition: all .16s ease;
+}
+.chip.active, .chip:hover{
+border-color: var(--ink);
+color: var(--ink);
+background: rgba(255,255,255,0.05);
+}
+.badge{
+font-family:'Space Grotesk',sans-serif;
+font-size:11px;
+border:1px solid var(--line);
+color:var(--ink-dim);
+}
+input[type="text"]::placeholder{ color:#565656; }
+.lib-search-input{ transition: border-color .16s ease, box-shadow .16s ease; }
+.lib-search-input:focus{ box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
+#download-modal{
+background: rgba(0,0,0,0.82);
+}
+.modal-panel{
+background: var(--bg-raised);
+border:1px solid var(--line);
+animation: rise .3s cubic-bezier(.22,.9,.3,1) both;
+}
+/* Optional "how to download" tutorial video panel — sits beside the
+   download popup (stacks below it on narrow/mobile screens). Muted
+   looping preview by default; .played hides the instructional
+   overlay once the visitor has clicked to play it with sound. */
+.tutorial-panel{
+background:#000;
+border:1px solid var(--line);
+animation: rise .3s cubic-bezier(.22,.9,.3,1) both;
+max-height:70vh;
+}
+.tutorial-play-overlay{
+position:absolute; inset:0; width:100%; height:100%;
+display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+background:linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.65) 100%);
+color:#fff; text-align:center; padding:1.25rem;
+cursor:pointer; border:none;
+transition: opacity .2s ease;
+}
+.tutorial-play-overlay:hover{ background:linear-gradient(180deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.75) 100%); }
+.tutorial-play-icon{
+width:52px; height:52px; border-radius:9999px;
+display:flex; align-items:center; justify-content:center;
+background:rgba(255,255,255,0.92); color:#0A0A0A;
+font-size:18px; padding-left:3px; /* optical centering of the ► glyph */
+box-shadow:0 8px 20px -6px rgba(0,0,0,0.6);
+}
+.tutorial-caption{ font-size:12.5px; font-weight:600; line-height:1.4; max-width:180px; text-shadow:0 1px 3px rgba(0,0,0,0.6); }
+#tutorial-panel.played .tutorial-play-overlay{ opacity:0; pointer-events:none; }
+.ring-progress{
+transition: stroke-dashoffset 1s linear;
+}
+::-webkit-scrollbar{ width:10px; }
+::-webkit-scrollbar-track{ background:var(--bg); }
+::-webkit-scrollbar-thumb{ background:#1F1F1F; border-radius:8px; }
+@media (prefers-reduced-motion: reduce){
+*{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+.skeleton{
+background: linear-gradient(90deg, #141414 25%, #1C1C1C 37%, #141414 63%);
+background-size: 400% 100%;
+animation: shimmer 1.4s ease infinite;
+}
+@keyframes shimmer{
+0%{ background-position: 100% 0; }
+100%{ background-position: 0 0; }
+}
+/* ---------- language / RTL support ---------- */
+html[lang="ar"] body{ font-family:'Tajawal',sans-serif; }
+html[lang="ar"] .font-display,
+html[lang="ar"] .badge{ font-family:'Tajawal',sans-serif; font-weight:700; letter-spacing:0; }
+html[lang="ru"] .font-display,
+html[lang="ru"] .badge{ font-family:'Inter',sans-serif; font-weight:700; letter-spacing:0; }
+[dir="rtl"] .lib-search-input{ padding-left:1rem; padding-right:2.75rem; }
+[dir="rtl"] .lib-search-input + svg,
+[dir="rtl"] .search-icon{ left:auto; right:1rem; }
+[dir="rtl"] .card .absolute.top-3.left-3{ left:auto; right:0.75rem; }
+[dir="rtl"] .card .absolute.top-3.right-3{ right:auto; left:0.75rem; }
+[dir="rtl"] #modal-close{ right:auto; left:1rem; }
+[dir="rtl"] #modal-title{ padding-right:0; padding-left:1.5rem; }
+[dir="rtl"] .border-l{ border-left:none; }
+[dir="rtl"] .stat-divider{ border-left:none; border-right:1px solid var(--line); }
+[dir="rtl"] dd{ text-align:left; }
+[dir="rtl"] .hero-rule{ margin-left:auto; }
+/* Custom language switcher — plain EN/AR/RU pill buttons that drive
+   Google's translation engine underneath (see the script near </head>
+   and initLangSwitcher() in script.js). We deliberately never show
+   Google's own default dropdown/iframe UI — full custom control here. */
+.lang-switch button{
+  color:var(--ink-dim);
+  transition: color .16s ease, background .16s ease;
+  border-radius:9999px;
+}
+.lang-switch button.active{ color:var(--ink); background:var(--bg-raised); }
+/* Google Translate injects a fixed top banner iframe + a body offset
+   the moment a translation is active — hide/undo both so the layout
+   never jumps and no second "translated to X" bar appears on top of
+   our own buttons. */
+.goog-te-banner-frame.skiptranslate{ display:none !important; }
+body{ top:0 !important; }
+.goog-tooltip, .goog-tooltip:hover{ display:none !important; }
+.goog-text-highlight{ background:none !important; box-shadow:none !important; }
+/* The actual Google Translate widget element is never shown — it only
+   exists so the engine has somewhere to attach to. */
+#google_translate_element{ display:none !important; }
 
-modalClose.addEventListener("click", closeModal);
-modal.addEventListener("click", (e) => {
-  if (e.target === modal) closeModal();
-});
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
-});
+/* ---------- drifting sand-grain particle layer ---------- */
+#sand-canvas{
+position:fixed;
+inset:0;
+width:100%;
+height:100%;
+z-index:0;
+pointer-events:none;
+opacity:.55;
+}
+header, section, footer{ position:relative; z-index:1; }
 
 /* =========================================================
-   NEW: contact target for the report / request forms below.
-   Frontend-only delivery via mailto — replace CONTACT_EMAIL
-   with a real inbox, or swap the two window.location.href
-   lines for a fetch() call to Formspree / Getform / your own
-   worker if you'd rather submit silently with no mail client.
+   NEW: card media crossfade (thumbnail <-> preview/gif)
    ========================================================= */
-const CONTACT_EMAIL = "requests@oelono.dev"; // TODO: replace with your real inbox
+.card-media{ position:relative; overflow:hidden; background:var(--bg-raised); }
+.card-media img{
+position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
+transition: opacity .45s cubic-bezier(.22,.9,.3,1), transform .5s cubic-bezier(.22,.9,.3,1);
+}
+.card-media .card-thumb{ position:relative; opacity:1; }
+.card-media .card-preview{ opacity:0; }
+.card:hover .card-media.has-3d .card-thumb{ opacity:1; }
+/* FIX: only crossfade to a preview when a preview image actually exists.
+   Before, the thumbnail faded out even when there was no (working) preview,
+   leaving the card completely blank/black on hover. */
+.card:hover .card-media.has-preview .card-thumb{ opacity:0; transform:scale(1.04); }
+.card:hover .card-media.has-preview .card-preview{ opacity:1; transform:scale(1.04); }
+.card:hover .card-media:not(.has-preview) .card-thumb{ opacity:1; transform:scale(1.03); }
+/* =========================================================
+   INLINE 3D HOVER VIEWER (GLB/GLTF on the card image)
+   ========================================================= */
+.card-3d-viewer{
+  position:absolute !important; inset:0; width:100%; height:100%;
+  background:#0A0A0A; opacity:0; z-index:5; pointer-events:none;
+  transition:opacity .35s ease; --poster-color:transparent;
+}
+.card-media.show-3d .card-3d-viewer{ opacity:1; pointer-events:auto; }
+/* MP4 preview shares the same hover behaviour as the 3D viewer above. */
+video.card-video-preview{ object-fit:cover; }
+/* Keep the thumbnail visible WHILE the model is still streaming,
+   so the card never shows a blank area during the 14MB load. */
+.card-media.model-loading .card-thumb{ opacity:1 !important; transform:none !important; }
+.card-media.model-loading .card-preview{ opacity:0 !important; }
+.card-media.model-ready.show-3d .card-thumb,
+.card-media.model-ready.show-3d .card-preview{ opacity:0 !important; }
+.card-3d-loading{
+  position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+  z-index:6; background:rgba(10,10,10,0.45); pointer-events:none;
+}
+.card-media.model-loading .card-3d-loading{ display:flex; }
+.card-3d-loading .spinner{
+  width:26px; height:26px;
+  border:2.5px solid rgba(255,255,255,0.18);
+  border-top-color:#FFFFFF; border-radius:50%;
+  animation:card-spin .8s linear infinite;
+}
+@keyframes card-spin{ to{ transform:rotate(360deg); } }
 
 /* =========================================================
-   DISCORD INTEGRATION (via Cloudflare Worker)
-   --------------------------------------------------------
-   Reports, model requests AND comments are pushed to Discord
-   through the "discord-bot" Cloudflare Worker instead of
-   calling a Discord webhook directly from the browser. This
-   keeps the webhook URLs secret (they live only as Worker
-   secrets), and lets the Worker validate/rate-limit input.
-
-   SETUP:
-   1. Deploy the Worker (discord-bot-worker.js) to Cloudflare.
-   2. Replace WORKER_URL below with your Worker's URL, e.g.
-      "https://discord-bot.YOUR-SUBDOMAIN.workers.dev/submit"
+   COMMENTS SYSTEM (modal + star rating + captcha)
    ========================================================= */
-const WORKER_URL = "https://discord-bot.beenbeen123455678.workers.dev/submit";
+.star-rating{ display:inline-flex; flex-direction:row-reverse; gap:2px; justify-content:flex-end; }
+.star-rating input{ display:none; }
+.star-rating label{
+  font-size:26px; line-height:1; color:#444; cursor:pointer;
+  transition:color .12s ease;
+}
+.star-rating label:hover,
+.star-rating label:hover ~ label,
+.star-rating input:checked ~ label{ color:#FFD24C; }
+#comment-list{ max-height:260px; overflow-y:auto; margin-top:10px; }
+.comment-item{
+  border-top:1px solid var(--line); padding:10px 0;
+}
+.comment-item:first-child{ border-top:none; }
+.comment-item .c-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px; }
+.comment-item .c-name{ font-weight:600; font-size:13px; color:var(--ink); }
+.comment-item .c-stars{ color:#FFD24C; font-size:12px; letter-spacing:1px; }
+.comment-item .c-date{ font-size:11px; color:var(--ink-dim); }
+.comment-item .c-body{ font-size:13px; color:var(--ink); line-height:1.5; word-wrap:break-word; }
+.comment-empty{ font-size:13px; color:var(--ink-dim); text-align:center; padding:18px 0; }
+.captcha-box{
+  display:inline-flex; align-items:center; gap:10px;
+  background:var(--bg); border:1px solid var(--line); border-radius:.5rem;
+  padding:.5rem .8rem; font-size:14px; user-select:none;
+}
+.captcha-box .cap-q{ font-weight:700; font-size:16px; color:var(--ink); letter-spacing:1px; }
+.captcha-box .cap-refresh{
+  background:transparent; border:none; color:var(--ink-dim); cursor:pointer;
+  font-size:15px; padding:0 2px; transition:color .12s ease;
+}
+.captcha-box .cap-refresh:hover{ color:var(--ink); }
+.comment-avg{
+  display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-dim);
+}
+.comment-avg .avg-stars{ color:#FFD24C; letter-spacing:1px; }
+.comment-count-btn{
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:11.5px; font-weight:600; color:var(--ink);
+  background:rgba(157,78,221,0.08); border:1px solid rgba(157,78,221,0.3);
+  padding:5px 10px; border-radius:999px; cursor:pointer;
+  transition:all .16s ease;
+}
+.comment-count-btn:hover{ border-color:#C79BFF; background:rgba(157,78,221,0.18); }
+
+@media (prefers-reduced-motion: reduce){
+.card-media img{ transition:none !important; transform:none !important; }
+}
 
 /* =========================================================
-   reCAPTCHA verification (via the oelono-comments Worker)
-   --------------------------------------------------------
-   The Worker holds the reCAPTCHA SECRET key (never exposed to the
-   browser) and checks the token against Google before we accept a
-   comment / wall message as human-submitted.
+   NEW: community wall (site-wide guestbook) — matches card style
    ========================================================= */
-const COMMENTS_API_URL = "https://oelono-comments.beenbeen123455678.workers.dev";
-
-async function verifyRecaptcha(token) {
-  if (!token) return false;
-  try {
-    const res = await fetch(`${COMMENTS_API_URL}/verify-captcha`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token }),
-    });
-    const data = await res.json();
-    return !!(data && data.success);
-  } catch (err) {
-    console.error("[reCAPTCHA] verify failed:", err);
-    return false;
-  }
+.wall-panel{
+background: var(--bg-raised);
+border:1px solid var(--line);
+transition: border-color .2s cubic-bezier(.22,.9,.3,1);
 }
+.wall-panel:hover{ border-color:#3A3A3A; }
+#guestbook-list{ max-height:420px; overflow-y:auto; }
+#guestbook-list .comment-item{ border-top:1px solid var(--line); padding:12px 0; }
+#guestbook-list .comment-item:first-child{ border-top:none; padding-top:4px; }
 
 /* =========================================================
-   Persist a comment or guestbook entry to data/comments.json.
-   This calls the SAME Worker as reCAPTCHA verification
-   (COMMENTS_API_URL), on a new "/submit-comment" route. That
-   route re-checks the honeypot/basic shape server-side, then
-   commits the updated data/comments.json straight to the repo
-   via the GitHub Contents API — see comments-worker/worker.js
-   for the deployable Worker source and setup notes.
-
-   `payload` is either:
-     { type: "comment",   productId, comment: {name,text,rating,ts} }
-     { type: "guestbook", entry: {name,text,rating,ts} }
-
-   On success, the Worker also returns the fresh comments.json so we
-   can update state.commentsData immediately without waiting for the
-   GitHub Pages rebuild (which normally takes under a minute).
-   Returns true/false.
+   NEW: card action row (3D preview + report link)
    ========================================================= */
-async function saveCommentRemote(payload) {
-  try {
-    const res = await fetch(`${COMMENTS_API_URL}/submit-comment`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) return false;
-    const data = await res.json().catch(() => null);
-    if (data && data.comments) {
-      // Server confirmed + returned the updated file — use it as-is.
-      state.commentsData = {
-        comments: data.comments.comments || {},
-        guestbook: data.comments.guestbook || [],
-      };
-    } else {
-      // Fallback: append optimistically on the client so the UI still
-      // reflects the new entry this session, even if the Worker didn't
-      // echo the file back.
-      if (payload.type === "comment") {
-        const id = payload.productId;
-        if (!Array.isArray(state.commentsData.comments[id])) state.commentsData.comments[id] = [];
-        state.commentsData.comments[id].push(payload.comment);
-      } else if (payload.type === "guestbook") {
-        state.commentsData.guestbook.push(payload.entry);
-      }
-    }
-    return true;
-  } catch (err) {
-    console.error("[comments] save failed:", err);
-    return false;
+.card-actions-row{
+display:flex; align-items:center; justify-content:space-between;
+margin-top:.6rem; padding-top:.6rem; border-top:1px solid var(--line);
+}
+.btn-ghost-sm{
+display:inline-flex; align-items:center; gap:5px;
+font-size:11.5px; color:var(--ink-dim);
+background:transparent; border:none; padding:2px 0; cursor:pointer;
+transition: color .16s ease;
+}
+.btn-ghost-sm:hover{ color:var(--ink); }
+.btn-ghost-sm.report-link:hover{ color:#FF6B6B; }
+.btn-3d{
+display:inline-flex; align-items:center; gap:5px;
+font-size:11.5px; font-weight:600; color:var(--ink);
+background:rgba(255,255,255,0.06); border:1px solid var(--line);
+padding:5px 10px; border-radius:999px; cursor:pointer;
+transition: all .16s ease;
+}
+.btn-3d:hover{ border-color:var(--ink); background:rgba(255,255,255,0.1); }
+
+/* =========================================================
+   NEW: generic overlay modal (3D viewer / report / request)
+   ========================================================= */
+.overlay-modal{ background:rgba(0,0,0,0.82); }
+/* ---------- Glass info modals (About / Privacy / Terms) ---------- */
+.glass-overlay{
+background: rgba(0,0,0,0.45);
+backdrop-filter: blur(10px) saturate(140%);
+-webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+.glass-panel{
+background: rgba(20,20,20,0.55);
+backdrop-filter: blur(24px) saturate(160%);
+-webkit-backdrop-filter: blur(24px) saturate(160%);
+border: 1px solid rgba(255,255,255,0.12);
+box-shadow: 0 24px 70px -24px rgba(0,0,0,0.7);
+animation: rise .3s cubic-bezier(.22,.9,.3,1) both;
+}
+.glass-panel .policy-body{ max-height:65vh; overflow-y:auto; padding-inline-end:6px; }
+.glass-panel .policy-body p{ line-height:2; color:var(--ink-dim); margin-bottom:1rem; }
+.glass-panel .policy-body h4{ font-family:'Tajawal',sans-serif; font-weight:700; color:var(--ink); margin-top:1.5rem; margin-bottom:.6rem; font-size:1.05rem; }
+.glass-panel .policy-body h4:first-child{ margin-top:0; }
+.glass-panel .policy-body ul{ list-style:disc; padding-inline-start:1.25rem; color:var(--ink-dim); }
+.glass-panel .policy-body li{ margin-bottom:.55rem; line-height:1.9; }
+.glass-panel .policy-body a{ color:var(--ink); text-decoration:underline; text-decoration-color:rgba(255,255,255,0.3); }
+.glass-panel .policy-body a:hover{ text-decoration-color:var(--ink); }
+.glass-panel .policy-body::-webkit-scrollbar{ width:8px; }
+.glass-panel .policy-body::-webkit-scrollbar-track{ background:transparent; }
+.glass-panel .policy-body::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.15); border-radius:8px; }
+.overlay-panel{
+background: var(--bg-raised); border:1px solid var(--line);
+animation: rise .3s cubic-bezier(.22,.9,.3,1) both;
+}
+#viewer-stage{
+width:100%; height:min(60vh, 460px);
+background:
+radial-gradient(circle at 50% 30%, #1b1b1b 0%, #0A0A0A 70%);
+border:1px solid var(--line); border-radius:.75rem; overflow:hidden;
+}
+model-viewer{ width:100%; height:100%; --poster-color:transparent; }
+.form-field label{ display:block; font-size:12px; color:var(--ink-dim); margin-bottom:6px; }
+.form-field input,
+.form-field select,
+.form-field textarea{
+width:100%; background:var(--bg); border:1px solid var(--line); border-radius:.5rem;
+padding:.65rem .8rem; font-size:13.5px; color:var(--ink);
+transition: border-color .16s ease, box-shadow .16s ease;
+}
+.form-field input::placeholder,
+.form-field textarea::placeholder{ color:#565656; }
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus{ outline:none; border-color:var(--ink); box-shadow:0 0 0 3px rgba(255,255,255,0.06); }
+.form-field textarea{ resize:vertical; min-height:90px; }
+
+/* toast confirmation */
+#toast{
+position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+background:var(--ink); color:#0A0A0A; font-weight:600; font-size:13px;
+padding:.7rem 1.2rem; border-radius:.6rem; z-index:70;
+opacity:0; pointer-events:none; transition: opacity .25s ease, transform .25s ease;
+box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+[dir="rtl"] #toast{ transform:translateX(50%) translateY(20px); }
+[dir="rtl"] #toast.show{ transform:translateX(50%) translateY(0); }
+</style>
+
+<!-- =========================================================
+     Automatic translation — Google's translation engine, driven by
+     our OWN plain EN/AR/RU buttons (see #lang-switcher in the header
+     and initLangSwitcher() in script.js), not Google's default
+     dropdown/banner UI. We tried Weglot first, but its free-plan
+     word cap and per-domain approval meant it silently stopped
+     translating part-way through the page. Google's widget has no
+     such cap and its MutationObserver keeps re-translating content
+     that scripts add to the page after load (e.g. product titles),
+     which is exactly what was missing before.
+     ========================================================= -->
+<script>
+  function googleTranslateElementInit() {
+    new google.translate.TranslateElement(
+      { pageLanguage: "en", includedLanguages: "ar,ru", autoDisplay: false },
+      "google_translate_element"
+    );
   }
+</script>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit" async defer></script>
+
+</head>
+<body class="min-h-screen">
+<!-- POPUNDER AD (kept high in body so its click-listener attaches before any user interaction) -->
+<div id="google_translate_element"></div>
+
+<canvas id="sand-canvas"></canvas>
+<!-- NAV -->
+<header class="sticky top-0 z-40 border-b border-[var(--line)] bg-[#0A0A0A]/90 backdrop-blur">
+<div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+<a href="#top" class="flex items-center gap-2.5">
+<img src="106993307.jpg" alt="Oelono" class="w-[26px] h-[26px] rounded-full object-cover">
+<span class="font-display text-lg font-semibold tracking-tight">Oelono</span>
+</a>
+<nav class="hidden md:flex items-center gap-8 text-sm text-[var(--ink-dim)]">
+<a href="#library" class="hover:text-[var(--ink)] transition-colors" data-i18n="nav_library">Library</a>
+<a href="#how-it-works" class="hover:text-[var(--ink)] transition-colors" data-i18n="nav_how">How it works</a>
+</nav>
+<div class="flex items-center gap-4">
+<div id="lang-switcher" class="lang-switch flex items-center gap-1 text-xs border border-[var(--line)] rounded-full px-1 py-1">
+<button data-lang="en" class="px-2 py-1 rounded-full">EN</button>
+<button data-lang="ar" class="px-2 py-1 rounded-full">AR</button>
+<button data-lang="ru" class="px-2 py-1 rounded-full">RU</button>
+</div>
+<a href="#library" class="btn-primary text-sm px-4 py-2 rounded-md" data-i18n="nav_browse">Browse assets</a>
+<button id="open-request-modal" class="chip text-sm px-4 py-2 rounded-md hidden sm:inline-flex items-center gap-1.5">
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+<span data-i18n="nav_request_label">Request a model</span>
+</button>
+</div>
+</div>
+</header>
+
+<!-- HERO -->
+<section id="top" class="relative border-b border-[var(--line)]">
+<div class="relative max-w-7xl mx-auto px-6 pt-16 pb-16 md:pt-20 md:pb-20">
+<div class="max-w-3xl">
+<div class="hero-rule mb-5"></div>
+<h1 class="reveal reveal-1 font-display text-4xl md:text-5xl font-semibold tracking-tight mb-4 leading-[1.05]">Blender assets,<br>ready to drop in</h1>
+<p class="reveal reveal-2 text-[var(--ink-dim)] text-sm md:text-base mb-9 max-w-xl">A community-fed library of characters, environments, shaders and animations — every file checked before it's listed.</p>
+<!-- quick jump -->
+<div class="reveal reveal-3 max-w-xl">
+<!-- Quick jump links: all three libraries are already rendered below,
+     one after another — these just scroll to a section. Each library
+     has its own search box further down, so searching never jumps you
+     into a different library's results. -->
+<div id="library-tabs" class="flex flex-wrap gap-2">
+<a href="#library-blender" class="chip inline-block px-4 py-2 rounded-full text-xs font-medium" data-i18n="lib_blender">Blender Assets</a>
+<a href="#library-games" class="chip inline-block px-4 py-2 rounded-full text-xs font-medium" data-i18n="lib_games">My Games</a>
+<a href="#library-roblox" class="chip inline-block px-4 py-2 rounded-full text-xs font-medium" data-i18n="lib_roblox">Roblox Assets</a>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+
+
+   
+<!-- LIBRARY — all three libraries are shown stacked, one after another,
+     in a fixed order (Blender → Games → Roblox). Nothing needs to be
+     clicked to reveal a library; each has its own heading, its own
+     category chips and its own grid, and all three share the one
+     search box in the hero. -->
+<section id="library" class="max-w-7xl mx-auto px-6 pt-16 pb-4 md:pt-20 md:pb-6">
+
+<!-- BLENDER -->
+<div id="library-blender" class="mb-16 scroll-mt-24">
+<div class="flex items-end justify-between mb-6 flex-wrap gap-3">
+<div>
+<h2 class="font-display text-2xl md:text-3xl font-semibold" data-i18n="library_heading_blender">The Blender library</h2>
+<p class="text-[var(--ink-dim)] text-sm mt-1" data-i18n="library_sub_blender">Every file is inspected before it's listed. New drops weekly.</p>
+</div>
+<div id="results-count-blender" class="text-xs text-[var(--ink-dim)]"></div>
+</div>
+<div class="relative max-w-md mb-5">
+<svg class="search-icon absolute left-4 top-1/2 -translate-y-1/2 text-[var(--ink-dim)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+<input id="search-input-blender" type="text" data-i18n-placeholder="search_placeholder_blender" placeholder="Search the Blender library…"
+class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)] rounded-lg pl-11 pr-4 py-2.5 text-sm focus:outline-none focus:border-[var(--ink)]">
+</div>
+<div id="category-chips-blender" class="flex flex-wrap gap-2 mb-6"></div>
+<div id="product-grid-blender" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+<div id="empty-state-blender" class="hidden text-center py-20">
+<p class="font-display text-xl text-[var(--ink-dim)]" data-i18n="empty_title">No assets match that search.</p>
+<p class="text-sm text-[var(--ink-dim)] mt-2" data-i18n="empty_sub">Try a different keyword or clear the category filter.</p>
+</div>
+</div>
+
+<!-- GAMES -->
+<div id="library-games" class="mb-16 scroll-mt-24">
+<div class="flex items-end justify-between mb-6 flex-wrap gap-3">
+<div>
+<h2 class="font-display text-2xl md:text-3xl font-semibold" data-i18n="library_heading_games">My Games</h2>
+<p class="text-[var(--ink-dim)] text-sm mt-1" data-i18n="library_sub_games">Playable builds and prototypes I've made — free to download.</p>
+</div>
+<div id="results-count-games" class="text-xs text-[var(--ink-dim)]"></div>
+</div>
+<div class="relative max-w-md mb-5">
+<svg class="search-icon absolute left-4 top-1/2 -translate-y-1/2 text-[var(--ink-dim)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+<input id="search-input-games" type="text" data-i18n-placeholder="search_placeholder_games" placeholder="Search My Games…"
+class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)] rounded-lg pl-11 pr-4 py-2.5 text-sm focus:outline-none focus:border-[var(--ink)]">
+</div>
+<div id="category-chips-games" class="flex flex-wrap gap-2 mb-6"></div>
+<div id="product-grid-games" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+<div id="empty-state-games" class="hidden text-center py-20">
+<p class="font-display text-xl text-[var(--ink-dim)]" data-i18n="empty_title">No assets match that search.</p>
+<p class="text-sm text-[var(--ink-dim)] mt-2" data-i18n="empty_sub">Try a different keyword or clear the category filter.</p>
+</div>
+</div>
+
+<!-- ROBLOX -->
+<div id="library-roblox" class="scroll-mt-24">
+<div class="flex items-end justify-between mb-6 flex-wrap gap-3">
+<div>
+<h2 class="font-display text-2xl md:text-3xl font-semibold" data-i18n="library_heading_roblox">Roblox Assets</h2>
+<p class="text-[var(--ink-dim)] text-sm mt-1" data-i18n="library_sub_roblox">Scripts, models and maps for Roblox Studio (.rbxl / .rbxm).</p>
+</div>
+<div id="results-count-roblox" class="text-xs text-[var(--ink-dim)]"></div>
+</div>
+<div class="relative max-w-md mb-5">
+<svg class="search-icon absolute left-4 top-1/2 -translate-y-1/2 text-[var(--ink-dim)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+<input id="search-input-roblox" type="text" data-i18n-placeholder="search_placeholder_roblox" placeholder="Search Roblox Assets…"
+class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)] rounded-lg pl-11 pr-4 py-2.5 text-sm focus:outline-none focus:border-[var(--ink)]">
+</div>
+<div id="category-chips-roblox" class="flex flex-wrap gap-2 mb-6"></div>
+<div id="product-grid-roblox" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+<div id="empty-state-roblox" class="hidden text-center py-20">
+<p class="font-display text-xl text-[var(--ink-dim)]" data-i18n="empty_title">No assets match that search.</p>
+<p class="text-sm text-[var(--ink-dim)] mt-2" data-i18n="empty_sub">Try a different keyword or clear the category filter.</p>
+</div>
+</div>
+
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works" class="border-t border-[var(--line)] bg-[var(--bg-raised)]/40">
+<div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
+<h2 class="font-display text-2xl md:text-3xl font-semibold mb-10" data-i18n="how_heading">How a download works</h2>
+<div class="grid md:grid-cols-3 gap-8">
+<div>
+<h3 class="font-semibold mb-1.5" data-i18n="how1_title">Pick your asset</h3>
+<p class="text-sm text-[var(--ink-dim)]" data-i18n="how1_desc">Browse or search the library, then open any asset's download panel to see its specs.</p>
+</div>
+<div>
+<h3 class="font-semibold mb-1.5" data-i18n="how2_title">Unlock the link</h3>
+<p class="text-sm text-[var(--ink-dim)]" data-i18n="how2_desc">A short sponsor page opens in a new tab — this is what keeps the library free to run.</p>
+</div>
+<div>
+<h3 class="font-semibold mb-1.5" data-i18n="how3_title">Grab the file</h3>
+<p class="text-sm text-[var(--ink-dim)]" data-i18n="how3_desc">Your Google Drive link unlocks right after — no login, no waiting rooms.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- SITE COMMUNITY WALL (guestbook) -->
+<section id="community-wall" class="border-t border-[var(--line)] bg-[var(--bg-raised)]/40">
+<div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
+<div class="flex items-center gap-3 mb-2">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+<h2 class="font-display text-2xl md:text-3xl font-semibold" data-i18n="wall_heading">Community wall</h2>
+</div>
+<p class="text-sm text-[var(--ink-dim)] mb-10" data-i18n="wall_subheading">Leave a public message for the whole site — feedback, ideas, or just say hi. No login needed.</p>
+<div class="grid md:grid-cols-2 gap-8 items-start">
+
+<!-- form panel -->
+<div class="wall-panel rounded-xl p-6">
+<h3 class="font-display text-lg font-semibold mb-4" data-i18n="wall_form_title">Post a message</h3>
+<form id="guestbook-form" class="space-y-4">
+<div class="form-field">
+<label for="gb-name" data-i18n="comment_name_label">Your name</label>
+<input id="gb-name" type="text" maxlength="40" required data-i18n-placeholder="comment_name_placeholder" placeholder="Anonymous">
+</div>
+<div class="form-field">
+<label data-i18n="comment_rating_label">Your rating</label>
+<div class="star-rating" id="gb-star-rating">
+<input type="radio" id="gb-star5" name="gb-rating" value="5"><label for="gb-star5">&#9733;</label>
+<input type="radio" id="gb-star4" name="gb-rating" value="4"><label for="gb-star4">&#9733;</label>
+<input type="radio" id="gb-star3" name="gb-rating" value="3"><label for="gb-star3">&#9733;</label>
+<input type="radio" id="gb-star2" name="gb-rating" value="2"><label for="gb-star2">&#9733;</label>
+<input type="radio" id="gb-star1" name="gb-rating" value="1"><label for="gb-star1">&#9733;</label>
+</div>
+</div>
+<div class="form-field">
+<label for="gb-text" data-i18n="comment_text_label">Your comment</label>
+<textarea id="gb-text" rows="3" maxlength="600" required data-i18n-placeholder="wall_text_placeholder" placeholder="Say something to the community…"></textarea>
+</div>
+<div class="form-field">
+<label data-i18n="comment_captcha_label">Anti-bot check</label>
+<div id="wall-recaptcha"></div>
+</div>
+<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="wall_submit">Post message</button>
+</form>
+</div>
+
+<!-- list panel -->
+<div class="wall-panel rounded-xl p-6">
+<div class="flex items-center justify-between gap-3 mb-1">
+<div class="flex items-center gap-2.5">
+<h3 class="font-display text-lg font-semibold" data-i18n="wall_list_title">Latest messages</h3>
+<span class="badge px-2 py-0.5 rounded" style="font-size:11px;" id="gb-count">0</span>
+</div>
+<span class="comment-avg" id="gb-avg-wrap" style="display:none;">
+<span class="avg-stars" id="gb-avg-stars"></span>
+<span id="gb-avg-text"></span>
+</span>
+</div>
+<div id="guestbook-list"></div>
+</div>
+
+</div>
+</div>
+</section>
+
+<!-- CONTACT -->
+<section id="contact" class="border-t border-[var(--line)]">
+<div class="max-w-7xl mx-auto px-6 py-16 md:py-20">
+<h2 class="font-display text-2xl md:text-3xl font-semibold" data-i18n="contact_heading">Contact us</h2>
+<p class="text-sm text-[var(--ink-dim)] mt-3 max-w-2xl" data-i18n="contact_desc">Got a question, a bug report, or a takedown request? Reach out any time — we read every message.</p>
+<div class="flex flex-wrap items-center gap-3 mt-6">
+<a href="https://discord.com/invite/JJcZvYRWMb" target="_blank" rel="noopener" data-confirm-leave class="btn-primary inline-flex items-center px-5 py-2.5 rounded-lg text-sm">Discord Server</a>
+</div>
+</div>
+</section>
+
+<footer class="border-t border-[var(--line)]">
+<div class="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-[var(--ink-dim)]">
+<span>© <span id="year"></span> Oelono <span data-i18n="footer_built">Built by Oelono.</span></span>
+<div class="flex gap-6">
+<button id="open-request-modal-footer" class="hover:text-[var(--ink)] transition-colors" data-i18n="nav_request_label">Request a model</button>
+<a href="https://discord.com/invite/JJcZvYRWMb" target="_blank" rel="noopener" data-confirm-leave class="hover:text-[var(--ink)] transition-colors" data-i18n="footer_contact">Contact</a>
+<button type="button" data-info-modal="about" class="hover:text-[var(--ink)] transition-colors" data-i18n="nav_about">About</button>
+<button type="button" data-info-modal="privacy" class="hover:text-[var(--ink)] transition-colors" data-i18n="footer_privacy">Privacy Policy</button>
+<button type="button" data-info-modal="terms" class="hover:text-[var(--ink)] transition-colors" data-i18n="footer_terms">Terms &amp; Conditions</button>
+<a href="/admin/" data-confirm-leave class="hover:text-[var(--ink)] transition-colors" data-i18n="footer_admin">Admin</a>
+<a href="https://github.com/" target="_blank" rel="noopener" data-confirm-leave class="hover:text-[var(--ink)] transition-colors">GitHub</a>
+<a href="#top" class="hover:text-[var(--ink)] transition-colors" data-i18n="footer_top">Back to top</a>
+</div>
+</div>
+</footer>
+
+<!-- ABOUT / PRIVACY / TERMS — GLASS INFO MODALS -->
+<div id="about-modal" class="glass-overlay fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="glass-panel relative w-full max-w-2xl rounded-2xl p-6 md:p-8">
+<button type="button" data-info-close class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-xl md:text-2xl font-bold pr-6 mb-1">من نحن؟</h3>
+<p class="text-sm text-[var(--ink-dim)] mb-5">تعرف على Oelono Blender Asset وفريق العمل</p>
+<div class="policy-body">
+<p class="text-[var(--ink)] font-semibold">مرحباً بك في Oelono Blender Asset!</p>
+<p>نحن منصة متخصصة تهدف إلى دعم المصممين والفنانين ثلاثيي الأبعاد (3D Artists) ومستخدمي برنامج Blender. نوفر لك مكتبة متجددة من الأصول (Assets)، المجسمات، والملفات المجهزة لتسهيل عملك وتسريع سير مشاريعك التصميمية.</p>
+<h4>رؤيتنا</h4>
+<p>تقديم محتوى عالي الجودة وسهل الاستخدام، يسهم في تطوير مهارات المصمم العربي وتوفير الوقت والجهد في بناء البيئات والمجسمات المعقدة.</p>
+<h4>لماذا Oelono؟</h4>
+<p>نسعى دائماً إلى اختيار وتجهيز الأصول بعناية للتوافق المباشر مع برنامج بلندر، سواء كنت مبتدئاً تبحث عن موارد مجانية لتتعلم عليها أو محترفاً تبحث عن خامات وموديلات جاهزة للاستخدام في مشاريعك.</p>
+<h4>فريق العمل</h4>
+<div class="grid sm:grid-cols-2 gap-4 mt-2">
+<a href="https://discord.gg/JJcZvYRWMb" target="_blank" rel="noopener" class="discord-badge w-fit">
+<img src="owner.webp" alt="l_e_s_s" class="db-avatar">
+<span class="db-name">l_e_s_s</span>
+<span class="db-tag">697176074727194634</span>
+</a>
+<a href="https://discord.gg/JJcZvYRWMb" target="_blank" rel="noopener" class="discord-badge w-fit">
+<img src="image.png" alt="Oe_Bear" class="db-avatar">
+<span class="db-name">Oe_Bear</span>
+<span class="db-tag">798203108974788649</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+
+<div id="privacy-modal" class="glass-overlay fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="glass-panel relative w-full max-w-2xl rounded-2xl p-6 md:p-8">
+<button type="button" data-info-close class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-xl md:text-2xl font-bold pr-6 mb-1">سياسة الخصوصية</h3>
+<p class="text-sm text-[var(--ink-dim)] mb-5">آخر تحديث لهذه الصفحة: 2022-12-30</p>
+<div class="policy-body">
+<p>خصوصيتك أيها الزائر لها أهمية بالغة بالنسبة لنا، وسياسة الخصوصية الموجودة في هذه الوثيقة تمثل الخطوط العريضة لأنواع المعلومات الشخصية التي يجمعها موقع <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> وكيفية استخدام هذه المعلومات.</p>
+<p>نحن نستعين بشركات إعلان كطرف ثالث لعرض الإعلانات، وعندما تزور موقع <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> فإنه يحق لهذه الشركات أن تستخدم معلومات حول زياراتك لهذا الموقع (باستثناء الاسم أو العنوان أو عنوان البريد الإلكتروني أو رقم الهاتف) وذلك من أجل تقديم إعلانات حول البضائع والخدمات التي تهمك عن طريق <a href="https://support.google.com/adsense/answer/7549925" target="_blank" rel="noopener">ملف تعريف الارتباط</a>.</p>
+<p>نحن في موقع <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> نستخدم إعلانات Google بصفتها مورّدًا مالياً خارجياً، ولذلك تستخدم شركة جوجل <a href="https://support.google.com/adsense/answer/7549925" target="_blank" rel="noopener">ملفات تعريف الارتباط</a> لعرض الإعلانات على موقعنا.</p>
+<p>وبذلك ستتمكّن Google، باستخدام ملف تعريف الارتباط <strong>DART</strong>، من عرض الإعلانات "حسب الاهتمامات" للمستخدمين استنادًا إلى زياراتهم لموقعنا.</p>
+<p>ويمكن لزوارنا الكرام تعطيل استخدام ملف تعريف الارتباط <strong>DART</strong> بزيارة <a href="http://www.google.com/policies/technologies/ads/" target="_blank" rel="noopener">سياسة الخصوصية الخاصة بإعلانات Google وشبكة المحتوى</a>.</p>
+<h4>ملفات الدخول</h4>
+<p>شأنها في ذلك شأن معظم خوادم المواقع الأخرى، ومن هنا فإن موقع <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> يستخدم نظام ملفات الدخول، وهذا يشمل بروتوكول الإنترنت (عناوين، نوع المتصفح، مزود خدمة الإنترنت "مقدمي خدمات الإنترنت"، التاريخ / الوقت، وعدد النقرات لتحليل الاتجاهات).</p>
+<p>من خلال هذه العملية لا يُقصد بذلك جمع كل هذه المعلومات في سبيل التلصص على أمور الزوار الشخصية، وإنما هي أمور تحليلية لأغراض تحسين جودة الإعلانات من قبل <strong>Google</strong>، ويضاف إلى ذلك أن جميع هذه المعلومات المحفوظة من قبلنا سرية تماماً، وتبقى ضمن نطاق التطوير والتحسين الخاص بموقعنا فقط.</p>
+<h4>الكوكيز وإعدادات الشبكة</h4>
+<p>إن شركة <strong>Google</strong> تستخدم تقنية الكوكيز لتخزين المعلومات عن اهتمامات الزوار، إلى جانب سجل خاص للمستخدم تُسجَّل فيه معلومات محددة عن الصفحات التي تم الوصول إليها أو زيارتها، وبهذه الخطوة فإننا نعرف مدى اهتمامات الزوار وأي المواضيع الأكثر تفضيلاً من قبلهم حتى نستطيع بدورنا تطوير محتوانا الخدمي والمعرفي المناسب لهم.</p>
+<p>نضيف إلى ذلك أن بعض الشركات التي تعلن في موقع <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> قد تطّلع على الكوكيز وإعدادات الشبكة الخاصة بموقعنا وبكم، ومن هذه الشركات مثلاً شركة <strong>Google</strong> وبرنامجها الإعلاني <a href="https://www.google.com/adsense/start/" target="_blank" rel="noopener">Google AdSense</a> وهي شركة الإعلانات الأولى في موقعنا.</p>
+<p>وبالطبع فمثل هذه الشركات المعلنة، والتي تُعتبر الطرف الثالث في سياسة الخصوصية، فهي تتابع مثل هذه البيانات والإحصائيات عبر بروتوكولات الإنترنت لأغراض تحسين جودة إعلاناتها وقياس مدى فعاليتها.</p>
+<p>كما أن هذه الشركات بموجب الاتفاقيات المبرمة معنا يحق لها استخدام وسائل تقنية مثل (الكوكيز، وإعدادات الشبكة، وأكواد برمجية خاصة "جافا سكريبت") لنفس الأغراض المذكورة أعلاه والتي تتلخص في تطوير المحتوى الإعلاني لهذه الشركات وقياس مدى فاعلية هذه الإعلانات، من دون أي أهداف أخرى قد تضر بشكل أو بآخر بزوار موقعنا.</p>
+<p>وبالطبع فإن موقع <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> لا يستطيع الوصول أو السيطرة على هذه الملفات، حتى بعد سماحك وتفعيلك لأخذها من جهازك (الكوكيز)، كما أننا غير مسؤولين بأي شكل من الأشكال عن الاستخدام غير الشرعي لها إن حصل ذلك.</p>
+<p>عليك مراجعة سياسة الخصوصية الخاصة بالطرف الثالث في هذه الوثيقة (الشركات المعلنة مثل <a href="https://www.google.com/adsense/start/" target="_blank" rel="noopener">Google AdSense</a>) أو خوادم الشبكات الإعلانية لمزيد من المعلومات عن ممارساتها وأنشطتها المختلفة.</p>
+<p>لمراجعة سياسة الخصوصية للبرنامج الإعلاني <a href="https://www.google.com/adsense/start/" target="_blank" rel="noopener">Google AdSense</a> والتابع لشركة <strong>Google</strong> يرجى النقر <a href="http://www.google.com/policies/technologies/ads/" target="_blank" rel="noopener">هنا</a>.</p>
+<p>يمكن جمع البيانات لتجديد النشاط التسويقي على الشبكة الإعلانية وشبكة البحث عبر سياسة الإعلانات التي تستهدف الاهتمامات والمواقع الخاصة بالزوار، ويمكن تعطيل هذه الخاصية من <a href="https://adssettings.google.com/authenticated" target="_blank" rel="noopener">هنا</a>.</p>
+<p>وأخيراً.. نحن ملزمون ضمن بنود هذه الاتفاقية بأن نبيّن لك كيفية تعطيل خاصية الكوكيز، حيث يمكنك فعل ذلك من خلال خيارات المتصفح الخاص بك، أو من خلال متابعة <a href="http://www.google.com/policies/technologies/ads/" target="_blank" rel="noopener">سياسة الخصوصية الخاصة بإعلانات Google وشبكة المحتوى</a>.</p>
+<p>إذا كنت بحاجة إلى مزيد من المعلومات أو لديك أية أسئلة عن سياسة الخصوصية، لا تتردد في الاتصال بنا عن طريق نموذج الاتصال، بالدخول إلى تبويب <button type="button" data-info-modal-jump="#contact" class="underline">اتصل بنا</button>.</p>
+<p class="mt-6 pt-5 border-t border-[var(--line)] text-xs">بنود هذه السياسة قابلة للتطوير والتغيير في محتواها في أي وقت نراه ضرورياً.</p>
+</div>
+</div>
+</div>
+
+<div id="terms-modal" class="glass-overlay fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="glass-panel relative w-full max-w-2xl rounded-2xl p-6 md:p-8">
+<button type="button" data-info-close class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-xl md:text-2xl font-bold pr-6 mb-1">الشروط والأحكام</h3>
+<p class="text-sm text-[var(--ink-dim)] mb-5">يرجى قراءة هذه الشروط بدقة قبل استخدام الموقع</p>
+<div class="policy-body">
+<p>مرحبا بكم في <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a>، باستعمالك لهذا الموقع فإنك توافق على أن تتقيد وتلتزم بالشروط والأحكام التالية، لذا يرجى منك الاطلاع على هذه الأحكام بدقة. إن كنت لا توافق على هذه الأحكام، فعليك ألا تطّلع على المعلومات المتوفرة في الموقع.</p>
+<p>جميع الأصول والملفات الموجودة في <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> معروضة "كما هي" بدون أي ضمانات، واستخدامك للموقع على مسؤوليتك الشخصية فقط، كما لا يلتزم <a href="https://oelono.github.io/" target="_blank" rel="noopener">Oelono Blender Asset</a> أو إدارته بأي مسؤولية أو تعويض عن أية أخطاء ناتجة من استخدامك للموقع أو إحدى خدماته أو محتوياته، ويخلي مسؤوليته من أي عقود أو اتفاقات جرت بشكل مستقل بين مستخدميه أو أي جهة أخرى.</p>
+<ul>
+<li>توفر المدونة إمكانية التعليق على المحتوى المنشور فيها.</li>
+<li>يحق لك كما لكل المستخدمين المشاركة في التعليق، على ألا تقوم بنشر أي محتوى يمكن أن يكون ضارًا، غير مشروع، تشهيري، مخالف، مسيء، محرض، قذر، مضايق أو ما شابه ذلك. أنت وحدك المسؤول عن التعليقات التي تشارك بها.</li>
+<li>حقوق الملكية الفكرية للتعليقات تبقى مسجلة لك، لكن يحق لصاحب الموقع إعادة استخدام التعليقات في أي نشاط متعلق بالموقع دون الحاجة إلى طلب إذن مسبق من صاحب التعليق، بشرط أن يقوم بذكر اسم صاحب التعليق ولا يعدل على التعليق بشكل يؤدي إلى التحريف في معناه.</li>
+<li>للتعليق في الموقع يفضل ذكر اسمك الشخصي. يمكنك استخدام اسم مستعار، لكن لا يسمح أبدًا بانتحال اسم أي شخص أو هيئة.</li>
+<li>يفضل ذكر بريدك الإلكتروني الحقيقي عند التعليق. الموقع يلتزم بعدم استخدام هذا البريد في أي نشاط سوى المراسلات الشخصية، ويلتزم بألا يسلم بريدك إلى أي طرف ثالث دون إذن مسبق منك.</li>
+<li>يجب عليك ألا تعدل أو تكيف الموقع ولا تستخدمه بطرق غير مشروعة أو بأي طرق أخرى يمكن أن تضر أو تعطل الموقع.</li>
+<li>يقوم الموقع بجمع بعض البيانات الخاصة بك، مثل نوع المتصفح، نظام التشغيل، رقم IP... إلخ. الهدف من جمع هذه البيانات هو تحسين مستوى الخدمة.</li>
+<li>يحق للموقع مشاركة هذه البيانات مع طرف ثالث دون أن يقوم بالربط بين هذه البيانات وهويتك الشخصية.</li>
+</ul>
+<p>قد تتغيّر هذه الاتفاقية من فترة لأخرى بما نراه مناسباً لهدف الموقع، لذا أرجو منك مراجعتها والتقيّد بما فيها.</p>
+<h4>إخلاء المسؤولية</h4>
+<p>نشر إعلانات المنتجات أو الخدمات والروابط الدعائية لا يعني تزكيتنا لها، ولا نقدم أي ضمانات جودة بخصوصها.</p>
+<p>نعرض بالموقع مراجعات لخدمات مواقع ومؤسسات. قد تكون تلك المراجعات مدفوعة الأجر وقد تكون مجانية، وبعضها الآخر قد نستخدم فيه روابط affiliate تتيح لنا تحصيل عمولة معينة في حالة اشتراكك أو شرائك من ذلك الرابط. ندوّن هذه المراجعات استناداً إلى المعلومات التي نحصل عليها من مدراء تسويق هذه المواقع والمؤسسات، أو من تجربة خاصة أو من خلال معلومات عامة، ومنه فلا نقدم لك أي ضمانات خاصة بخصوص جودة المنتجات أو الخدمات.</p>
+<p>نعرض كذلك محتوى قد يحمل في مضمونه سيرا ذاتية لأشخاص، مستنداً إلى المراسلات أو المقابلات التي تتم بيننا، ورغم أننا سنطّلع على الشهادات والوثائق التي تبين المستوى والكفاءات، إلا أننا لا نضمن صحتها 100%، ومنه فإن أي مغالطات تقع على مسؤولية أصحابها.</p>
+<p>لا نتحمل مسؤولية الأضرار التي قد تكون ناتجة عن عدم حسن تطبيق بعض الشروحات.</p>
+<p>استعمالك وتصفحك للموقع يعني موافقتك الكاملة على جميع الشروط الواردة في هذه الصفحة. إذا كنت لا توافق على الشروط الموجودة في هذه الصفحة، لا يسمح لك تصفح الموقع ومشاهدة محتوياته، ويجب عليك التوقف عن استخدامه الآن.</p>
+</div>
+</div>
+</div>
+
+<!-- LEAVE-SITE CONFIRMATION MODAL -->
+<div id="leave-site-modal" class="glass-overlay fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="glass-panel relative w-full max-w-sm rounded-2xl p-6 md:p-7 text-center">
+<h3 class="font-display text-lg font-bold mb-2">مغادرة الموقع</h3>
+<p class="text-sm text-[var(--ink-dim)] mb-6">أنت على وشك الانتقال إلى صفحة خارج Oelono Blender Asset. هل توافق على المتابعة؟</p>
+<div class="flex items-center justify-center gap-3">
+<button type="button" id="leave-site-cancel" class="chip px-5 py-2.5 rounded-md text-sm">خروج</button>
+<a id="leave-site-confirm" href="#" class="btn-primary px-5 py-2.5 rounded-md text-sm">موافق</a>
+</div>
+</div>
+</div>
+
+<!-- DOWNLOAD MODAL -->
+<div id="download-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="modal-panel relative w-full max-w-md rounded-xl p-6 md:p-7">
+<button id="modal-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<span id="modal-badge" class="badge inline-block px-2.5 py-1 rounded mb-4"></span>
+<h3 id="modal-title" class="font-display text-xl font-semibold pr-6"></h3>
+<p id="modal-desc" class="text-sm text-[var(--ink-dim)] mt-2 leading-relaxed"></p>
+<dl class="grid grid-cols-2 gap-y-3 mt-5 text-sm border-t border-[var(--line)] pt-5">
+<dt class="text-[var(--ink-dim)]" data-i18n="modal_filesize_label">File size</dt>
+<dd id="modal-filesize" class="text-right"></dd>
+<dt class="text-[var(--ink-dim)]" data-i18n="modal_engine_label">Render engine</dt>
+<dd id="modal-engine" class="text-right"></dd>
+<dt class="text-[var(--ink-dim)]" data-i18n="modal_license_label">License</dt>
+<dd id="modal-license" class="text-right"></dd>
+</dl>
+
+<!-- Steps row: the progress bar / step dots / video-ad / unlock button on
+     the left, and — docked right alongside them, NOT floating off the
+     whole card — the optional tutorial video panel. Stacks on narrow
+     screens. This whole row is what the tutorial video is "attached" to. -->
+<div class="mt-6 flex flex-col sm:flex-row gap-4 items-stretch">
+<div class="flex-1 min-w-0">
+<div class="mb-3">
+<div class="flex items-center justify-between text-xs mb-1.5">
+<span id="progress-label" class="text-[var(--ink-dim)]"></span>
+<span id="progress-percent" class="text-[var(--ink-dim)] font-medium"></span>
+</div>
+<div class="w-full h-1.5 rounded-full overflow-hidden" style="background:var(--line);">
+<div id="progress-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:linear-gradient(90deg, #00F0FF, #9D4EDD);"></div>
+</div>
+</div>
+<div id="step-indicator" class="flex items-center justify-center gap-2 mb-4 flex-wrap"></div>
+
+<!-- STEP 1 of the 4-step flow: 10-second video ad gate.
+     Plays activeProduct.adVideoUrl if the product/CMS supplies one, or a
+     site-wide default video (window.DEFAULT_AD_VIDEO_URL, set in script.js).
+     If no video source can load, it falls back to a 10-second AdSense
+     display-ad "watch" step so the gate still always lasts 10s. -->
+<div id="ad-video-step" class="hidden mb-4">
+<div class="relative rounded-lg overflow-hidden" style="aspect-ratio:16/9;background:#000;">
+<video id="ad-video" muted playsinline autoplay class="w-full h-full object-cover"></video>
+<div id="ad-video-fallback" class="hidden absolute inset-0 items-center justify-center overflow-hidden" style="background:var(--bg-raised);">
+<ins class="adsbygoogle" style="display:block;width:100%;height:100%;" data-ad-client="ca-pub-2827589221947089" data-ad-slot="0000000000" data-ad-format="auto" data-full-width-responsive="true"></ins>
+</div>
+<div class="absolute bottom-2 right-2 text-[11px] px-2 py-1 rounded-full font-medium" style="background:rgba(0,0,0,0.65);color:#fff;">
+<span id="ad-video-countdown">10</span>s
+</div>
+</div>
+<p id="ad-video-caption" class="text-xs text-[var(--ink-dim)] text-center mt-2"></p>
+</div>
+
+<button id="unlock-btn" class="btn-primary w-full py-3 rounded-lg text-sm flex items-center justify-center gap-2" disabled>
+<svg id="unlock-ring" width="18" height="18" viewBox="0 0 36 36" class="shrink-0">
+<circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(10,10,10,0.25)" stroke-width="3"/>
+<circle id="unlock-ring-progress" class="ring-progress" cx="18" cy="18" r="15.5" fill="none" stroke="#0A0A0A" stroke-width="3" stroke-dasharray="97.4" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 18 18)"/>
+</svg>
+<span id="unlock-label">Unlocking in 10s…</span>
+</button>
+<a id="drive-btn" target="_blank" rel="noopener"
+class="hidden btn-primary w-full py-3 rounded-lg text-sm items-center justify-center gap-2 mt-3">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m0 0-6-6m6 6 6-6M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<span data-i18n="modal_drive_btn">Download final file</span>
+</a>
+<p id="modal-hint" class="text-xs text-[var(--ink-dim)] text-center mt-3">A sponsor page opens in a new tab to keep this library free.</p>
+</div>
+
+<!-- Optional side "how to download" tutorial video panel.
+     Hidden entirely (display:none) unless the active product has a
+     tutorialVideoUrl set via the admin — see setupTutorialPanel() in
+     script.js. Starts as a silent looping preview with an instructional
+     overlay; clicking it unmutes and plays with sound. Docked right next
+     to the steps block above so it reads as one unit, not a separate
+     floating card. -->
+<div id="tutorial-panel" class="hidden tutorial-panel w-full sm:w-36 rounded-xl overflow-hidden shrink-0">
+<div id="tutorial-video-wrap" class="relative h-full" style="aspect-ratio:9/16; background:#000;">
+<video id="tutorial-video" playsinline loop muted class="w-full h-full object-cover"></video>
+<button id="tutorial-video-toggle" type="button" class="tutorial-play-overlay" aria-label="Play tutorial with sound">
+<span class="tutorial-play-icon" aria-hidden="true">►</span>
+<span class="tutorial-caption" data-i18n="tutorial_video_caption">Stuck? Tap to watch how to download — with sound</span>
+</button>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+
+<!-- 3D VIEWER MODAL -->
+<div id="viewer-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-2xl rounded-xl p-5 md:p-6">
+<button id="viewer-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 id="viewer-title" class="font-display text-lg font-semibold pr-6 mb-3" data-i18n="viewer_title">3D preview</h3>
+<div id="viewer-stage">
+<model-viewer id="model-viewer-el" camera-controls auto-rotate rotation-per-second="18deg"
+shadow-intensity="0.9" exposure="0.95" environment-image="neutral" interaction-prompt="none">
+<div slot="progress-bar"></div>
+</model-viewer>
+<video id="video-viewer-el" class="hidden" controls autoplay loop playsinline style="width:100%;height:100%;object-fit:contain;background:#0A0A0A;"></video>
+</div>
+<p id="viewer-hint" class="text-xs text-[var(--ink-dim)] text-center mt-3" data-i18n="viewer_hint">Drag to rotate · scroll to zoom. This is a lightweight preview — the downloaded .blend file may include extra materials, rigs and lighting.</p>
+</div>
+</div>
+
+<!-- REPORT BROKEN LINK MODAL -->
+<div id="report-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-sm rounded-xl p-6">
+<button id="report-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-lg font-semibold pr-6 mb-1" data-i18n="report_title">Report a broken link</h3>
+<p id="report-asset-name" class="text-sm text-[var(--ink-dim)] mb-4"></p>
+<form id="report-form" class="space-y-4">
+<div class="form-field">
+<label for="report-reason" data-i18n="report_reason_label">What's wrong?</label>
+<select id="report-reason">
+<option value="dead-link" data-i18n="report_reason_dead">Download link doesn't work</option>
+<option value="wrong-file" data-i18n="report_reason_wrong">File doesn't match the description</option>
+<option value="corrupted" data-i18n="report_reason_corrupt">File is corrupted / won't open</option>
+<option value="other" data-i18n="report_reason_other">Something else</option>
+</select>
+</div>
+<div class="form-field">
+<label for="report-note" data-i18n="report_note_label">Details (optional)</label>
+<textarea id="report-note" rows="3" data-i18n-placeholder="report_note_placeholder" placeholder="Anything that helps us fix it faster…"></textarea>
+</div>
+<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="report_submit">Send report</button>
+</form>
+</div>
+</div>
+
+<!-- REQUEST A MODEL MODAL -->
+<div id="request-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-md rounded-xl p-6">
+<button id="request-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-lg font-semibold pr-6 mb-1" data-i18n="request_title">Request a model</h3>
+<p class="text-sm text-[var(--ink-dim)] mb-5" data-i18n="request_sub">Tell us what you need — if it fits the library, we'll add it to the queue.</p>
+<form id="request-form" class="space-y-4">
+<div class="form-field">
+<label for="request-desc" data-i18n="request_desc_label">What model do you need?</label>
+<textarea id="request-desc" rows="3" required data-i18n-placeholder="request_desc_placeholder" placeholder="e.g. a low-poly medieval blacksmith shop with modular walls"></textarea>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="form-field">
+<label for="request-category" data-i18n="request_category_label">Category</label>
+<select id="request-category">
+<option value="Characters" data-i18n="chip_characters">Characters</option>
+<option value="Environments" data-i18n="chip_environments">Environments</option>
+<option value="Shaders" data-i18n="chip_shaders">Shaders</option>
+<option value="Animations" data-i18n="chip_animations">Animations</option>
+<option value="Assets" data-i18n="chip_assets">Assets</option>
+</select>
+</div>
+<div class="form-field">
+<label for="request-contact" data-i18n="request_contact_label">Email (optional)</label>
+<input id="request-contact" type="email" data-i18n-placeholder="request_contact_placeholder" placeholder="you@example.com">
+</div>
+</div>
+<div class="form-field">
+<label for="request-ref" data-i18n="request_ref_label">Reference link (optional)</label>
+<input id="request-ref" type="text" data-i18n-placeholder="request_ref_placeholder" placeholder="Artstation / Pinterest / image URL…">
+</div>
+<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="request_submit">Send request</button>
+</form>
+</div>
+</div>
+
+
+<!-- COMMENTS MODAL -->
+<div id="comments-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-md rounded-xl p-6" style="max-height:88vh;overflow-y:auto;">
+<button id="comments-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-lg font-semibold pr-6 mb-1" data-i18n="comments_title">Comments</h3>
+<p id="comments-asset-name" class="text-sm text-[var(--ink-dim)] mb-3"></p>
+<div id="comment-avg-wrap" class="mb-3" style="display:none;">
+  <span class="comment-avg"><span class="avg-stars" id="comment-avg-stars"></span><span id="comment-avg-text"></span></span>
+</div>
+<div id="comment-list"></div>
+<hr style="border-color:var(--line);margin:14px 0;">
+<form id="comment-form" class="space-y-4">
+<div class="form-field">
+<label for="comment-name" data-i18n="comment_name_label">Your name</label>
+<input id="comment-name" type="text" maxlength="40" required data-i18n-placeholder="comment_name_placeholder" placeholder="Anonymous">
+</div>
+<div class="form-field">
+<label data-i18n="comment_rating_label">Your rating</label>
+<div class="star-rating" id="star-rating">
+<input type="radio" id="star5" name="rating" value="5"><label for="star5">&#9733;</label>
+<input type="radio" id="star4" name="rating" value="4"><label for="star4">&#9733;</label>
+<input type="radio" id="star3" name="rating" value="3"><label for="star3">&#9733;</label>
+<input type="radio" id="star2" name="rating" value="2"><label for="star2">&#9733;</label>
+<input type="radio" id="star1" name="rating" value="1"><label for="star1">&#9733;</label>
+</div>
+</div>
+<div class="form-field">
+<label for="comment-text" data-i18n="comment_text_label">Your comment</label>
+<textarea id="comment-text" rows="3" maxlength="600" required data-i18n-placeholder="comment_text_placeholder" placeholder="Share your thoughts about this asset..."></textarea>
+</div>
+<div class="form-field">
+<label data-i18n="comment_captcha_label">Anti-bot check</label>
+<div id="comment-recaptcha"></div>
+</div>
+<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="comment_submit">Post comment</button>
+</form>
+</div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function(){
+var canvas = document.getElementById('sand-canvas');
+var ctx = canvas.getContext('2d');
+var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var W, H, DPR;
+var grains = [];
+var GRAIN_COUNT = 160;
+var running = true;
+var rafId = null;
+var lastFrame = 0;
+var FRAME_INTERVAL = 1000 / 30; // cap at ~30fps, plenty smooth for slow drifting grains
+
+function resize(){
+DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+W = window.innerWidth;
+H = window.innerHeight;
+canvas.width = W * DPR;
+canvas.height = H * DPR;
+canvas.style.width = W + 'px';
+canvas.style.height = H + 'px';
+ctx.setTransform(DPR,0,0,DPR,0,0);
 }
 
-async function sendToDiscord(type, { title, description, fields = [], footer = "" }) {
-  if (!WORKER_URL || WORKER_URL.includes("YOUR-SUBDOMAIN")) {
-    console.warn("[Discord] WORKER_URL not configured yet in script.js.");
-    return false;
-  }
-  const payload = {
-    type, // "report" | "request" | "comment"
-    title: title || "",
-    description: description || "",
-    fields: fields.filter(f => f && f.name && f.value),
-    footer: footer || "",
-    honeypot: "", // فاضي دايمًا للمستخدم الحقيقي؛ لو اتملى الـ Worker بيتجاهل الطلب
-  };
-  try {
-    const res = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return res.ok;
-  } catch (err) {
-    console.error("[Discord] send failed:", err);
-    return false;
-  }
-}
-
-
-const toastEl = document.getElementById("toast");
-let toastTimer = null;
-function showToast(message) {
-  if (!toastEl || !message) return;
-  toastEl.textContent = message;
-  toastEl.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 3200);
-}
-
-/* ---------------------------------------------------------
-   3D VIEWER MODAL — <model-viewer> loads the asset's GLB/GLTF
-   (product field: modelUrl) so visitors can rotate/zoom it
-   before downloading.
-   --------------------------------------------------------- */
-const viewerModal = document.getElementById("viewer-modal");
-const viewerClose = document.getElementById("viewer-close");
-const viewerTitleEl = document.getElementById("viewer-title");
-const viewerHintEl = document.getElementById("viewer-hint");
-const modelViewerEl = document.getElementById("model-viewer-el");
-const videoViewerEl = document.getElementById("video-viewer-el");
-
-function openViewerModal(product) {
-  const hasModel = !!product.modelUrl;
-  const hasVideo = !hasModel && !!product.previewVideoUrl;
-  if (!hasModel && !hasVideo) {
-    showToast(t("viewer_unavailable"));
-    return;
-  }
-
-  viewerTitleEl.textContent = product.title || (hasModel ? t("viewer_title") : t("viewer_title_video"));
-  if (viewerHintEl) viewerHintEl.textContent = hasModel ? t("viewer_hint") : t("viewer_hint_video");
-
-  if (hasModel) {
-    modelViewerEl.classList.remove("hidden");
-    videoViewerEl.classList.add("hidden");
-    modelViewerEl.setAttribute("alt", product.title || "3D preview");
-    if (product.posterImage || product.thumbnail) {
-      modelViewerEl.setAttribute("poster", product.posterImage || product.thumbnail);
-    } else {
-      modelViewerEl.removeAttribute("poster");
-    }
-    modelViewerEl.setAttribute("src", product.modelUrl);
-    videoViewerEl.removeAttribute("src");
-    videoViewerEl.pause();
-  } else {
-    videoViewerEl.classList.remove("hidden");
-    modelViewerEl.classList.add("hidden");
-    modelViewerEl.removeAttribute("src");
-    videoViewerEl.setAttribute("src", product.previewVideoUrl);
-    videoViewerEl.play().catch(() => {});
-  }
-
-  viewerModal.classList.remove("hidden");
-  viewerModal.classList.add("flex");
-  document.body.style.overflow = "hidden";
-}
-
-function closeViewerModal() {
-  viewerModal.classList.add("hidden");
-  viewerModal.classList.remove("flex");
-  document.body.style.overflow = "";
-  modelViewerEl.removeAttribute("src"); // stop rendering once hidden
-  videoViewerEl.pause();
-  videoViewerEl.removeAttribute("src");
-  videoViewerEl.load();
-}
-
-viewerClose.addEventListener("click", closeViewerModal);
-viewerModal.addEventListener("click", (e) => { if (e.target === viewerModal) closeViewerModal(); });
-
-/* ---------------------------------------------------------
-   REPORT BROKEN LINK MODAL
-   --------------------------------------------------------- */
-const reportModal = document.getElementById("report-modal");
-const reportClose = document.getElementById("report-close");
-const reportForm = document.getElementById("report-form");
-const reportAssetName = document.getElementById("report-asset-name");
-const reportReasonSelect = document.getElementById("report-reason");
-const reportNote = document.getElementById("report-note");
-let reportProduct = null;
-
-function openReportModal(product) {
-  reportProduct = product;
-  reportAssetName.textContent = product.title || "";
-  reportForm.reset();
-  reportModal.classList.remove("hidden");
-  reportModal.classList.add("flex");
-  document.body.style.overflow = "hidden";
-}
-
-function closeReportModal() {
-  reportModal.classList.add("hidden");
-  reportModal.classList.remove("flex");
-  document.body.style.overflow = "";
-  reportProduct = null;
-}
-
-reportClose.addEventListener("click", closeReportModal);
-reportModal.addEventListener("click", (e) => { if (e.target === reportModal) closeReportModal(); });
-
-reportForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (!reportProduct) return;
-
-  const reasonLabel = reportReasonSelect.options[reportReasonSelect.selectedIndex].text;
-
-  const ok = await sendToDiscord("report", {
-    title: "🚩 Broken Link Report",
-    description: `**Asset:** ${reportProduct.title} (\`${reportProduct.id}\`)`,
-    fields: [
-      { name: "Reason", value: reasonLabel, inline: true },
-      { name: "Details", value: reportNote.value.trim() || "—", inline: false },
-      { name: "Page", value: window.location.href, inline: false },
-    ],
-    footer: "Vaultframe report",
-  });
-
-  showToast(t("report_success"));
-  closeReportModal();
-
-  if (!ok) {
-    const subject = `Broken link report: ${reportProduct.title}`;
-    const body =
-      `Asset: ${reportProduct.title} (${reportProduct.id})\n` +
-      `Reason: ${reasonLabel}\n` +
-      `Details: ${reportNote.value.trim() || "—"}\n` +
-      `Page: ${window.location.href}`;
-    window.location.href =
-      `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }
-});
-
-/* ---------------------------------------------------------
-   ABOUT / PRIVACY / TERMS — GLASS INFO MODALS
-   --------------------------------------------------------- */
-const infoModals = {
-  about: document.getElementById("about-modal"),
-  privacy: document.getElementById("privacy-modal"),
-  terms: document.getElementById("terms-modal"),
+function makeGrain(){
+return {
+x: Math.random() * W,
+y: Math.random() * H,
+r: Math.random() * 1.3 + 0.35,
+speedX: (Math.random() - 0.5) * 0.9,
+speedY: Math.random() * 0.7 + 0.25,
+drift: Math.random() * Math.PI * 2,
+driftSpeed: (Math.random() * 0.03) + 0.01,
+alpha: Math.random() * 0.6 + 0.2
 };
-
-function openInfoModal(name) {
-  const modal = infoModals[name];
-  if (!modal) return;
-  modal.classList.remove("hidden");
-  modal.classList.add("flex");
-  document.body.style.overflow = "hidden";
 }
 
-function closeInfoModal(name) {
-  const modal = infoModals[name];
-  if (!modal) return;
-  modal.classList.add("hidden");
-  modal.classList.remove("flex");
-  document.body.style.overflow = "";
+function init(){
+resize();
+grains = [];
+for(var i=0;i<GRAIN_COUNT;i++){ grains.push(makeGrain()); }
+if(reduceMotion){ drawStatic(); } else { rafId = requestAnimationFrame(tick); }
 }
 
-function closeAllInfoModals() {
-  Object.keys(infoModals).forEach(closeInfoModal);
+function drawStatic(){
+ctx.clearRect(0,0,W,H);
+ctx.fillStyle = '#FFFFFF';
+grains.forEach(function(g){
+ctx.globalAlpha = g.alpha * 0.6;
+ctx.beginPath();
+ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+ctx.fill();
+});
+ctx.globalAlpha = 1;
 }
 
-document.querySelectorAll("[data-info-modal]").forEach((btn) => {
-  btn.addEventListener("click", () => openInfoModal(btn.getAttribute("data-info-modal")));
+var windTime = 0;
+
+function tick(ts){
+rafId = requestAnimationFrame(tick);
+if(!running) return;
+if(ts - lastFrame < FRAME_INTERVAL) return;
+lastFrame = ts;
+
+windTime += 0.02;
+var wind = Math.sin(windTime) * 1.7 + Math.sin(windTime * 2.7 + 1.3) * 0.8;
+
+ctx.clearRect(0,0,W,H);
+ctx.fillStyle = '#FFFFFF';
+grains.forEach(function(g){
+g.drift += g.driftSpeed;
+var windPull = wind * (2.2 - g.r);
+g.x += g.speedX + windPull + Math.sin(g.drift) * 0.28;
+g.y += g.speedY;
+if(g.y > H + 4){ g.y = -4; g.x = Math.random() * W; }
+if(g.x > W + 4) g.x = -4;
+if(g.x < -4) g.x = W + 4;
+ctx.globalAlpha = g.alpha;
+ctx.beginPath();
+ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
+ctx.fill();
+});
+ctx.globalAlpha = 1;
+}
+
+// pause the ambient animation while the download modal is open or the tab
+// is hidden, so it never competes with the unlock/download flow
+var modalEl = document.getElementById('download-modal');
+function syncRunning(){
+var modalOpen = modalEl && !modalEl.classList.contains('hidden');
+running = !modalOpen && document.visibilityState === 'visible';
+}
+if(modalEl){
+new MutationObserver(syncRunning).observe(modalEl, { attributes:true, attributeFilter:['class'] });
+}
+document.addEventListener('visibilitychange', syncRunning);
+
+window.addEventListener('resize', function(){
+resize();
 });
 
-Object.entries(infoModals).forEach(([name, modal]) => {
-  if (!modal) return;
-  modal.addEventListener("click", (e) => { if (e.target === modal) closeInfoModal(name); });
-  modal.querySelectorAll("[data-info-close]").forEach((btn) => {
-    btn.addEventListener("click", () => closeInfoModal(name));
-  });
-});
+init();
+})();
+</script>
+<script src="script.js"></script>
 
-// link inside the privacy modal that jumps to the contact section
-document.querySelectorAll("[data-info-modal-jump]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const target = btn.getAttribute("data-info-modal-jump");
-    closeAllInfoModals();
-    document.body.style.overflow = "";
-    const el = document.querySelector(target);
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  });
-});
-
-/* ---------------------------------------------------------
-   LEAVE-SITE CONFIRMATION (Admin / GitHub / Contact / any
-   link marked with data-confirm-leave)
-   --------------------------------------------------------- */
-const leaveSiteModal = document.getElementById("leave-site-modal");
-const leaveSiteConfirm = document.getElementById("leave-site-confirm");
-const leaveSiteCancel = document.getElementById("leave-site-cancel");
-
-function openLeaveSiteModal(url, target) {
-  leaveSiteConfirm.setAttribute("href", url);
-  if (target) {
-    leaveSiteConfirm.setAttribute("target", target);
-    leaveSiteConfirm.setAttribute("rel", "noopener");
-  } else {
-    leaveSiteConfirm.removeAttribute("target");
-  }
-  leaveSiteModal.classList.remove("hidden");
-  leaveSiteModal.classList.add("flex");
-  document.body.style.overflow = "hidden";
-}
-
-function closeLeaveSiteModal() {
-  leaveSiteModal.classList.add("hidden");
-  leaveSiteModal.classList.remove("flex");
-  document.body.style.overflow = "";
-}
-
-if (leaveSiteModal && leaveSiteConfirm && leaveSiteCancel) {
-  document.querySelectorAll("[data-confirm-leave]").forEach((link) => {
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      openLeaveSiteModal(link.getAttribute("href"), link.getAttribute("target"));
-    });
-  });
-
-  leaveSiteCancel.addEventListener("click", closeLeaveSiteModal);
-  leaveSiteConfirm.addEventListener("click", closeLeaveSiteModal);
-  leaveSiteModal.addEventListener("click", (e) => { if (e.target === leaveSiteModal) closeLeaveSiteModal(); });
-}
-
-/* ---------------------------------------------------------
-   REQUEST A MODEL MODAL
-   --------------------------------------------------------- */
-const requestModal = document.getElementById("request-modal");
-const requestClose = document.getElementById("request-close");
-const requestForm = document.getElementById("request-form");
-const requestDesc = document.getElementById("request-desc");
-const requestCategory = document.getElementById("request-category");
-const requestContact = document.getElementById("request-contact");
-const requestRef = document.getElementById("request-ref");
-
-function openRequestModal() {
-  requestForm.reset();
-  requestModal.classList.remove("hidden");
-  requestModal.classList.add("flex");
-  document.body.style.overflow = "hidden";
-}
-
-function closeRequestModal() {
-  requestModal.classList.add("hidden");
-  requestModal.classList.remove("flex");
-  document.body.style.overflow = "";
-}
-
-const requestModalNavBtn = document.getElementById("open-request-modal");
-if (requestModalNavBtn) requestModalNavBtn.addEventListener("click", openRequestModal);
-const requestModalFooterBtn = document.getElementById("open-request-modal-footer");
-if (requestModalFooterBtn) requestModalFooterBtn.addEventListener("click", openRequestModal);
-
-requestClose.addEventListener("click", closeRequestModal);
-requestModal.addEventListener("click", (e) => { if (e.target === requestModal) closeRequestModal(); });
-
-requestForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (!requestDesc.value.trim()) {
-    showToast(t("request_error"));
-    return;
-  }
-
-  const ok = await sendToDiscord("request", {
-    title: "💡 Model Request",
-    description: `**Category:** ${requestCategory.value}`,
-    fields: [
-      { name: "Description", value: requestDesc.value.trim(), inline: false },
-      { name: "Reference", value: requestRef.value.trim() || "—", inline: false },
-      { name: "Contact", value: requestContact.value.trim() || "—", inline: true },
-    ],
-    footer: "Vaultframe request",
-  });
-
-  showToast(t("request_success"));
-  closeRequestModal();
-
-  if (!ok) {
-    const subject = `Model request: ${requestCategory.value}`;
-    const body =
-      `Category: ${requestCategory.value}\n` +
-      `Description: ${requestDesc.value.trim()}\n` +
-      `Reference: ${requestRef.value.trim() || "—"}\n` +
-      `Contact: ${requestContact.value.trim() || "—"}`;
-    window.location.href =
-      `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  }
-});
-
-/* =========================================================
-   COMMENTS SYSTEM
-   - No login required (name + comment + 1-5 star rating)
-   - Simple math captcha (anti-bot)
-   - Profanity filter (blocklist)
-   - Stored in localStorage + pushed to Discord webhook
-   ========================================================= */
-
-// --- Profanity blocklist (English + Arabic + Russian common offenders) ---
-const PROFANITY_LIST = [
-  // English
-  "fuck", "shit", "bitch", "asshole", "bastard", "dick", "piss", "cunt",
-  "whore", "slut", "nigger", "nigga", "retard", "faggot", "douche",
-  "motherfucker", "cock", "pussy", "wanker", "twat", "prick", "bollocks",
-  // Arabic (transliterated + script)
-  "khsara", "kos", "kuss", "omak", "abak", "khol", "sharmoota", "sharmuta",
-  "kes emmak", "ibn", "kalb", "hmar", "gayid", "nagis", "khara", "khara2",
-  // Russian (transliterated)
-  "blyad", "blyat", "suka", "pizdec", "pizdets", "hui", "davalka", "ebal",
-];
-
-function containsProfanity(text) {
-  const lower = text.toLowerCase();
-  // Normalize: collapse repeated spaces and strip diacritics lightly
-  const normalized = lower.replace(/\s+/g, " ").trim();
-  for (const word of PROFANITY_LIST) {
-    // word boundary match so "ass" won't flag "class"
-    const re = new RegExp("(?:^|[^a-z\u0600-\u06ff\u0400-\u04ff])" +
-      word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
-      "(?:[^a-z\u0600-\u06ff\u0400-\u04ff]|$)", "i");
-    if (re.test(normalized)) return true;
-  }
-  return false;
-}
-
-/* =========================================================
-   COMMENTS STORAGE — single source of truth is data/comments.json.
-   The file is fetched once on load (loadComments, below) and kept in
-   state.commentsData. Comments are NEVER kept in localStorage anymore:
-   submitting a comment POSTs it to the comments Worker, which commits
-   the update to data/comments.json in the repo. The card counters and
-   the comments modal both read straight from state.commentsData, so
-   every visitor sees the same comments — not just their own browser.
-   ========================================================= */
-async function loadComments() {
-  try {
-    const res = await fetch("data/comments.json", { cache: "no-store" });
-    if (!res.ok) throw new Error("Failed to load comments.json");
-    const json = await res.json();
-    state.commentsData = {
-      comments: (json && typeof json.comments === "object" && json.comments) || {},
-      guestbook: (json && Array.isArray(json.guestbook)) ? json.guestbook : [],
-    };
-  } catch (err) {
-    console.error(err);
-    state.commentsData = { comments: {}, guestbook: [] };
-  }
-}
-
-function getCommentsFor(productId) {
-  const list = state.commentsData.comments[productId];
-  return Array.isArray(list) ? list : [];
-}
-
-// --- Refresh the visible comment count badges on cards ---
-function refreshCommentCounts() {
-  const all = state.commentsData.comments;
-  document.querySelectorAll("[data-cmt-for]").forEach(span => {
-    const id = span.getAttribute("data-cmt-for");
-    const list = Array.isArray(all[id]) ? all[id] : [];
-    span.textContent = String(list.length);
-  });
-}
-
-// --- Comments modal ---
-const commentsModal = document.getElementById("comments-modal");
-const commentsClose = document.getElementById("comments-close");
-const commentsAssetName = document.getElementById("comments-asset-name");
-const commentList = document.getElementById("comment-list");
-const commentAvgWrap = document.getElementById("comment-avg-wrap");
-const commentAvgStars = document.getElementById("comment-avg-stars");
-const commentAvgText = document.getElementById("comment-avg-text");
-const commentForm = document.getElementById("comment-form");
-const commentNameInput = document.getElementById("comment-name");
-const commentTextInput = document.getElementById("comment-text");
-let activeCommentProduct = null;
-
-function starsString(n) {
-  let s = "";
-  for (let i = 0; i < 5; i++) s += (i < n) ? "\u2605" : "\u2606";
-  return s;
-}
-
-function renderComments(productId) {
-  const list = getCommentsFor(productId);
-  if (!list.length) {
-    commentList.innerHTML = '<div class="comment-empty">' + escapeHtml(t("comment_empty")) + '</div>';
-    commentAvgWrap.style.display = "none";
-    return;
-  }
-  // average
-  const avg = list.reduce((s, c) => s + (c.rating || 0), 0) / list.length;
-  commentAvgStars.textContent = starsString(Math.round(avg));
-  commentAvgText.textContent = t("comment_avg_text")(avg);
-  commentAvgWrap.style.display = "inline-flex";
-
-  commentList.innerHTML = list.slice().reverse().map(c => {
-    const d = new Date(c.ts || Date.now());
-    const dateStr = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-    return '<div class="comment-item">' +
-      '<div class="c-head">' +
-        '<span class="c-name">' + escapeHtml(c.name || "Anonymous") + '</span>' +
-        '<span class="c-date">' + escapeHtml(dateStr) + '</span>' +
-      '</div>' +
-      '<div class="c-stars">' + starsString(c.rating || 0) + '</div>' +
-      '<div class="c-body">' + escapeHtml(c.text || "") + '</div>' +
-    '</div>';
-  }).join("");
-}
-
-function openCommentsModal(product) {
-  activeCommentProduct = product;
-  commentsAssetName.textContent = product.title || "";
-  renderComments(product.id);
-  commentForm.reset();
-  if (window.grecaptcha && window.commentRecaptchaWidgetId !== null) {
-    grecaptcha.reset(window.commentRecaptchaWidgetId);
-  }
-  commentsModal.classList.remove("hidden");
-  commentsModal.classList.add("flex");
-  document.body.style.overflow = "hidden";
-}
-
-function closeCommentsModal() {
-  commentsModal.classList.add("hidden");
-  commentsModal.classList.remove("flex");
-  document.body.style.overflow = "";
-  activeCommentProduct = null;
-}
-
-commentsClose.addEventListener("click", closeCommentsModal);
-commentsModal.addEventListener("click", (e) => {
-  if (e.target === commentsModal) closeCommentsModal();
-});
-
-commentForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const name = commentNameInput.value.trim();
-  const text = commentTextInput.value.trim();
-  const ratingInput = commentForm.querySelector('input[name="rating"]:checked');
-  const rating = ratingInput ? parseInt(ratingInput.value, 10) : 0;
-  const recaptchaToken = window.grecaptcha && window.commentRecaptchaWidgetId !== null
-    ? grecaptcha.getResponse(window.commentRecaptchaWidgetId)
-    : "";
-
-  if (!name) { showToast(t("comment_error_name")); return; }
-  if (!text) { showToast(t("comment_error_text")); return; }
-  if (!recaptchaToken) { showToast(t("comment_error_captcha")); return; }
-  if (containsProfanity(name + " " + text)) { showToast(t("comment_error_profanity")); return; }
-
-  const captchaOk = await verifyRecaptcha(recaptchaToken);
-  if (!captchaOk) {
-    showToast(t("comment_error_captcha"));
-    if (window.grecaptcha && window.commentRecaptchaWidgetId !== null) {
-      grecaptcha.reset(window.commentRecaptchaWidgetId);
-    }
-    return;
-  }
-
-  const comment = {
-    name: name,
-    text: text,
-    rating: rating,
-    ts: Date.now(),
-  };
-
-  const submitBtn = commentForm.querySelector('[type="submit"]');
-  if (submitBtn) submitBtn.disabled = true;
-
-  // Save it to data/comments.json (via the comments Worker) — this is the
-  // ONLY place the comment is stored. There's no localStorage fallback:
-  // if this fails, the comment is not shown, because it wouldn't be visible
-  // to anyone else anyway.
-  const saved = await saveCommentRemote({
-    type: "comment",
-    productId: activeCommentProduct.id,
-    comment,
-  });
-
-  if (submitBtn) submitBtn.disabled = false;
-
-  if (!saved) {
-    showToast(t("comment_error_save"));
-    return;
-  }
-
-  renderComments(activeCommentProduct.id);
-  refreshCommentCounts();
-  commentForm.reset();
-  if (window.grecaptcha && window.commentRecaptchaWidgetId !== null) {
-    grecaptcha.reset(window.commentRecaptchaWidgetId);
-  }
-  showToast(t("comment_success"));
-
-  // Best-effort Discord notification for the site owner (in addition to,
-  // not instead of, the saved comment above).
-  sendToDiscord("comment", {
-    title: "\u{1F4AC} New Comment",
-    description: "**Asset:** " + (activeCommentProduct.title || "Unknown"),
-    fields: [
-      { name: "Name", value: name, inline: true },
-      { name: "Rating", value: rating + " / 5 " + starsString(rating), inline: true },
-      { name: "Comment", value: text, inline: false },
-    ],
-    footer: "Vaultframe comments",
-  }).then(() => {}).catch(() => {});
-});
-
-/* =========================================================
-   SITE-WIDE COMMUNITY WALL (guestbook)
-   - Same engine as the asset comments: math captcha,
-     profanity filter, 1-5 star rating, Discord push.
-   - Persisted the SAME way the per-asset comments are: via the
-     comments-worker (saveCommentRemote), which commits straight
-     into data/comments.json on GitHub so every visitor sees it —
-     NOT localStorage. (Previously this section only saved to the
-     current browser's localStorage and never called the Worker at
-     all, which is why wall messages used to appear instantly for
-     the poster but never reached GitHub for anyone else.)
-   ========================================================= */
-const gbForm = document.getElementById("guestbook-form");
-const gbList = document.getElementById("guestbook-list");
-const gbCount = document.getElementById("gb-count");
-const gbAvgWrap = document.getElementById("gb-avg-wrap");
-const gbAvgStars = document.getElementById("gb-avg-stars");
-const gbAvgText = document.getElementById("gb-avg-text");
-const gbNameInput = document.getElementById("gb-name");
-const gbTextInput = document.getElementById("gb-text");
-
-// --- storage: reads straight from the server-loaded state, same
-//     source of truth as the per-asset comments ---
-function getGuestbook() {
-  return Array.isArray(state.commentsData.guestbook) ? state.commentsData.guestbook : [];
-}
-
-// --- render ---
-function renderGuestbook() {
-  const list = getGuestbook().slice().reverse();
-  if (gbCount) {
-    const n = list.length;
-    gbCount.textContent = t("wall_count_label")(n);
-  }
-  if (!list.length) {
-    if (gbList) gbList.innerHTML = '<div class="comment-empty">' + escapeHtml(t("wall_empty")) + '</div>';
-    if (gbAvgWrap) gbAvgWrap.style.display = "none";
-    return;
-  }
-  const rated = list.filter(c => c.rating > 0);
-  if (rated.length && gbAvgWrap) {
-    const avg = rated.reduce((s, c) => s + c.rating, 0) / rated.length;
-    gbAvgStars.textContent = starsString(Math.round(avg));
-    gbAvgText.textContent = t("comment_avg_text")(avg);
-    gbAvgWrap.style.display = "inline-flex";
-  } else if (gbAvgWrap) {
-    gbAvgWrap.style.display = "none";
-  }
-  if (gbList) {
-    gbList.innerHTML = list.map(c => {
-      const d = new Date(c.ts || Date.now());
-      const dateStr = d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-      return '<div class="comment-item">' +
-        '<div class="c-head">' +
-          '<span class="c-name">' + escapeHtml(c.name || "Anonymous") + '</span>' +
-          '<span class="c-date">' + escapeHtml(dateStr) + '</span>' +
-        '</div>' +
-        (c.rating ? '<div class="c-stars">' + starsString(c.rating) + '</div>' : '') +
-        '<div class="c-body">' + escapeHtml(c.text || "") + '</div>' +
-      '</div>';
-    }).join("");
-  }
-}
-
-// --- form ---
-if (gbForm) {
-  gbForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = gbNameInput.value.trim();
-    const text = gbTextInput.value.trim();
-    const ratingInput = gbForm.querySelector('input[name="gb-rating"]:checked');
-    const rating = ratingInput ? parseInt(ratingInput.value, 10) : 0;
-    const recaptchaToken = window.grecaptcha && window.wallRecaptchaWidgetId !== null
-      ? grecaptcha.getResponse(window.wallRecaptchaWidgetId)
-      : "";
-
-    if (!name) { showToast(t("comment_error_name")); return; }
-    if (!text) { showToast(t("comment_error_text")); return; }
-    if (!recaptchaToken) { showToast(t("comment_error_captcha")); return; }
-    if (containsProfanity(name + " " + text)) { showToast(t("comment_error_profanity")); return; }
-
-    const captchaOk = await verifyRecaptcha(recaptchaToken);
-    if (!captchaOk) {
-      showToast(t("comment_error_captcha"));
-      if (window.grecaptcha && window.wallRecaptchaWidgetId !== null) {
-        grecaptcha.reset(window.wallRecaptchaWidgetId);
-      }
-      return;
-    }
-
-    const entry = { name, text, rating, ts: Date.now() };
-    const submitBtn = gbForm.querySelector('button[type="submit"]');
-    if (submitBtn) submitBtn.disabled = true;
-
-    const saved = await saveCommentRemote({ type: "guestbook", entry });
-
-    if (submitBtn) submitBtn.disabled = false;
-    if (window.grecaptcha && window.wallRecaptchaWidgetId !== null) {
-      grecaptcha.reset(window.wallRecaptchaWidgetId);
-    }
-
-    if (!saved) {
-      showToast(t("comment_error_save"));
-      return;
-    }
-
-    renderGuestbook();
-    gbForm.reset();
-    showToast(t("wall_success"));
-
-    // best-effort Discord push (same webhook as comments)
-    sendToDiscord("comment", {
-      title: "\u{1F4AC} Wall message",
-      description: "**Where:** Community wall (site-wide)",
-      fields: [
-        { name: "Name", value: name, inline: true },
-        { name: "Rating", value: rating > 0 ? rating + " / 5 " + starsString(rating) : "—", inline: true },
-        { name: "Message", value: text, inline: false },
-      ],
-      footer: "Oelono community wall",
-    }).then(() => {}).catch(() => {});
-  });
-}
-
-function initGuestbook() {
-  renderGuestbook();
-}
-initGuestbook();
-
-// Escape closes whichever overlay is open
-document.addEventListener("keydown", (e) => {
-  if (e.key !== "Escape") return;
-  if (!viewerModal.classList.contains("hidden")) closeViewerModal();
-  if (!reportModal.classList.contains("hidden")) closeReportModal();
-  if (!requestModal.classList.contains("hidden")) closeRequestModal();
-  if (!commentsModal.classList.contains("hidden")) closeCommentsModal();
-  closeAllInfoModals();
-  if (leaveSiteModal && !leaveSiteModal.classList.contains("hidden")) closeLeaveSiteModal();
-});
-
-initLanguage();
-loadProducts();
-// Pull the shared data/comments.json from GitHub so every visitor sees
-// the same comments/guestbook messages, not just whoever is currently
-// submitting one. (This call used to be missing entirely — the function
-// existed but nothing ever invoked it, so comment counts/badges and the
-// guestbook only ever reflected the current browser's own session.)
-loadComments().then(() => {
-  refreshCommentCounts();
-  renderGuestbook();
-});
-// ===== البلاغات والطلبات عبر Discord =====
-// (تم نقل المنطق إلى sendToDiscord أعلاه — هذه دوال مساعدة للأزرار الديناميكية)
-
-// دالة إرسال بلاغ عن رابط مكسور (تستخدم Discord webhook)
-window.reportBrokenLink = async function(modelName, details = '') {
-    const ok = await sendToDiscord("report", {
-        title: "🚩 Broken Link Report",
-        description: `**Model:** ${modelName || 'غير محدد'}`,
-        fields: [{ name: "Details", value: details || 'تم الإبلاغ عن رابط مكسور', inline: false }],
-        footer: "Vaultframe report",
-    });
-    alert(ok ? '✅ تم إرسال بلاغك بنجاح، شكراً لك!' : '⚠️ تعذّر الإرسال لـ Discord — تأكد من إعداد الـ webhook.');
-};
-
-// دالة طلب موديل جديد (تستخدم Discord webhook)
-window.requestModel = async function(modelName, description = '') {
-    if (!modelName || modelName.trim() === '') {
-        alert('الرجاء إدخال اسم الموديل المطلوب');
-        return;
-    }
-    const ok = await sendToDiscord("request", {
-        title: "💡 Model Request",
-        description: `**Model:** ${modelName.trim()}`,
-        fields: [{ name: "Description", value: description.trim() || 'لا توجد وصف', inline: false }],
-        footer: "Vaultframe request",
-    });
-    alert(ok ? '✅ تم إرسال طلبك بنجاح، سنعمل على توفيره قريباً!' : '⚠️ تعذّر الإرسال لـ Discord — تأكد من إعداد الـ webhook.');
-};
+</body>
+</html>
