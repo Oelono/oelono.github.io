@@ -23,9 +23,12 @@ const state = {
 };
 
 /* =========================================================
-   UI strings — single English source. The site now relies on
-   automatic (browser/Google) translation instead of hand-maintained
-   per-language dictionaries, so we only need one set of strings.
+   UI strings — English source. Arabic/Russian versions live in
+   i18n.js (window.TRANSLATIONS) and are looked up by t() below.
+   For anything NOT in this fixed dictionary (product titles,
+   descriptions — free text the CMS owner writes in English),
+   see translateDynamic() further down, which calls the Lingva
+   API (lingva.ml) at runtime instead.
    ========================================================= */
 const strings = {
     nav_library: "Library",
@@ -176,6 +179,8 @@ const LIBRARIES = {
 };
 
 function t(key) {
+  const dict = window.TRANSLATIONS && window.TRANSLATIONS[state.lang];
+  if (dict && Object.prototype.hasOwnProperty.call(dict, key)) return dict[key];
   return strings[key] ?? key;
 }
 
@@ -197,13 +202,10 @@ document.getElementById("year").textContent = new Date().getFullYear();
 /* =========================================================
    Static text fill-in
    --------------------------------------------------------
-   The site content is written once, in English, and the manual
-   3-language translation system (and its ~400-line dictionary)
-   has been removed. Visitors who want another language use the
-   browser's/Google's automatic "Translate this page" feature
-   (see the Google Translate widget wired up in index.html) —
-   it covers every language, not just the three we used to
-   hand-maintain, and needs zero upkeep on our side.
+   Fills every [data-i18n]/[data-i18n-placeholder] element from
+   t(key), which resolves against window.TRANSLATIONS (i18n.js) for
+   ar/ru or falls back to the English `strings` above. Called by
+   setLang() below whenever the language changes.
    ========================================================= */
 function applyStaticTranslations() {
   document.querySelectorAll("[data-i18n]").forEach(el => {
@@ -217,52 +219,147 @@ function applyStaticTranslations() {
 }
 
 function initLanguage() {
-  document.documentElement.lang = "en";
-  document.documentElement.dir = "ltr";
-  applyStaticTranslations();
-  renderCategoryChips();
+  setLang(getSavedLang(), { skipRender: true });
 }
 
 /* =========================================================
-   Language switcher — plain EN/AR/RU buttons that drive Google's
-   translation engine via the same cookie the (hidden) Google
-   Translate widget reads on load. Clicking a button sets that
-   cookie and reloads the page; Google's script then translates the
-   whole DOM (and keeps re-translating anything script.js adds
-   later, like product titles, via its own MutationObserver) —
-   no per-string dictionary to maintain, no visible Google UI.
-   ========================================================= */
-const GOOGTRANS_COOKIE = "googtrans";
+   Language switcher — plain EN/AR/RU pill buttons.
 
-function getActiveTranslateLang() {
-  const match = document.cookie.match(/(?:^|;\s*)googtrans=\/en\/([a-z-]+)/);
-  return match ? match[1] : "en";
+   Static UI text (nav, buttons, labels, empty states, etc.) comes
+   straight from window.TRANSLATIONS (i18n.js) via t(), so switching
+   is instant — no page reload, no external request.
+
+   Content the CMS owner writes in English (product titles,
+   descriptions, and anything else marked with data-mt-src) is
+   translated live through the Lingva API — see translateDynamic()
+   just below. This replaces the previous Google Translate widget
+   (which drove translation via a `googtrans` cookie + full reload).
+   ========================================================= */
+const SITE_LANG_KEY = "site_lang";
+
+function getSavedLang() {
+  try {
+    const saved = localStorage.getItem(SITE_LANG_KEY);
+    if (saved === "ar" || saved === "ru" || saved === "en") return saved;
+  } catch (e) { /* localStorage unavailable (private mode, etc.) — fall back to en */ }
+  return "en";
 }
 
-function setActiveTranslateLang(lang) {
-  if (lang === "en") {
-    // Clear the cookie to go back to the original English page.
-    document.cookie = `${GOOGTRANS_COOKIE}=; path=/; max-age=0`;
-  } else {
-    document.cookie = `${GOOGTRANS_COOKIE}=/en/${lang}; path=/; max-age=31536000`;
+function updateLangSwitcherUI() {
+  const wrap = document.getElementById("lang-switcher");
+  if (!wrap) return;
+  wrap.querySelectorAll("button[data-lang]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.lang === state.lang);
+  });
+}
+
+function setLang(lang, opts = {}) {
+  if (lang !== "ar" && lang !== "ru") lang = "en";
+  state.lang = lang;
+  try { localStorage.setItem(SITE_LANG_KEY, lang); } catch (e) { /* ignore */ }
+
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+
+  applyStaticTranslations();
+  renderCategoryChips();
+  updateLangSwitcherUI();
+
+  if (!opts.skipRender) {
+    render(); // redraws product grids with translated labels + fresh data-mt-src nodes
+    translateDynamic(document); // (re)translate every dynamic node currently on the page
   }
-  window.location.reload();
 }
 
 function initLangSwitcher() {
   const wrap = document.getElementById("lang-switcher");
   if (!wrap) return;
-  const active = getActiveTranslateLang();
-  wrap.querySelectorAll("button[data-lang]").forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.lang === active);
-  });
+  updateLangSwitcherUI();
   wrap.addEventListener("click", (e) => {
     const btn = e.target.closest("button[data-lang]");
     if (!btn || btn.classList.contains("active")) return;
-    setActiveTranslateLang(btn.dataset.lang);
+    setLang(btn.dataset.lang);
   });
 }
 initLangSwitcher();
+
+/* =========================================================
+   Live translation of dynamic (non-UI) content via Lingva
+   (https://lingva.ml — an open-source, ad/tracker-free front end
+   for Google Translate). Any element rendered with a
+   data-mt-src="<original English text>" attribute gets picked up
+   here and translated into the current language, with results
+   cached in localStorage so repeat visits (and repeat cards using
+   the same title) don't re-hit the API.
+   ========================================================= */
+const LINGVA_INSTANCES = [
+  "https://lingva.ml",
+  "https://translate.plausibility.cloud", // fallback mirror if lingva.ml is unreachable
+];
+const LINGVA_CACHE_KEY = "lingva_cache_v1";
+let lingvaCache = {};
+try { lingvaCache = JSON.parse(localStorage.getItem(LINGVA_CACHE_KEY) || "{}"); } catch (e) { lingvaCache = {}; }
+
+function saveLingvaCache() {
+  try { localStorage.setItem(LINGVA_CACHE_KEY, JSON.stringify(lingvaCache)); } catch (e) { /* ignore quota errors */ }
+}
+
+async function lingvaTranslate(text, targetLang, sourceLang = "en") {
+  if (!text || !text.trim() || targetLang === "en") return text;
+  const cacheKey = `${sourceLang}:${targetLang}::${text}`;
+  if (lingvaCache[cacheKey]) return lingvaCache[cacheKey];
+
+  for (const base of LINGVA_INSTANCES) {
+    try {
+      const res = await fetch(`${base}/api/v1/${sourceLang}/${targetLang}/${encodeURIComponent(text)}`);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (data && data.translation) {
+        lingvaCache[cacheKey] = data.translation;
+        saveLingvaCache();
+        return data.translation;
+      }
+    } catch (e) { /* try next instance / fall back to original below */ }
+  }
+  return text; // every instance failed — show the original text rather than nothing
+}
+
+// Translates every element under `root` carrying data-mt-src into the
+// current language. Safe to call repeatedly (e.g. after re-rendering
+// the grid, or right after openModal/openReportModal/etc. set the
+// attribute on a single element).
+//
+// Elements written by the CMS owner (product titles/descriptions) are
+// known to be in English, so they translate from "en". Elements also
+// carrying data-mt-auto="1" are free text visitors typed themselves
+// (comments, guestbook messages) — source language is unknown, so we
+// ask Lingva to auto-detect it instead of assuming English.
+async function translateDynamic(root = document) {
+  if (state.lang === "en") return;
+  const lang = state.lang;
+  const nodes = root.querySelectorAll ? root.querySelectorAll("[data-mt-src]") : [];
+  await Promise.all(Array.from(nodes).map(async (el) => {
+    const original = el.dataset.mtSrc;
+    if (!original) return;
+    const source = el.dataset.mtAuto ? "auto" : "en";
+    const translated = await lingvaTranslate(original, lang, source);
+    // Guard against the element having been reused for different content
+    // (e.g. modal reopened with another product) while the request was in flight.
+    if (el.dataset.mtSrc === original) el.textContent = translated;
+  }));
+}
+
+// Sets `el`'s text to `text`, marking it for live translation if the
+// current language isn't English. Shows the English text immediately
+// and upgrades it in place once the translation resolves, so there's
+// no blank/loading flash.
+function setDynamicText(el, text) {
+  if (!el) return;
+  const value = text || "";
+  el.dataset.mtSrc = value;
+  el.textContent = value;
+  if (state.lang !== "en" && value) translateDynamic(el.parentElement || el);
+}
 
 /* ---------- load data ---------- */
 async function loadProducts() {
@@ -341,6 +438,7 @@ function renderLibrarySection(lib) {
   if (emptyState) emptyState.classList.add("hidden");
 
   grid.innerHTML = items.map(cardTemplate).join("");
+  translateDynamic(grid); // translate title/description of every card just inserted
 
   grid.querySelectorAll("[data-download-id]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -458,8 +556,8 @@ function cardTemplate(p) {
       </div>
       <div class="p-5">
         <div class="text-xs text-[var(--ink-dim)] mb-1.5">${escapeHtml(p.category || "")}</div>
-        <h3 class="font-semibold leading-snug mb-1.5">${escapeHtml(p.title)}</h3>
-        <p class="text-sm text-[var(--ink-dim)] line-clamp-2 mb-4">${escapeHtml(p.description || "")}</p>
+        <h3 class="font-semibold leading-snug mb-1.5" data-mt-src="${escapeAttr(p.title)}">${escapeHtml(p.title)}</h3>
+        <p class="text-sm text-[var(--ink-dim)] line-clamp-2 mb-4" data-mt-src="${escapeAttr(p.description || "")}">${escapeHtml(p.description || "")}</p>
         <div class="flex items-center justify-between">
           <span class="text-xs text-[var(--ink-dim)]">${escapeHtml(p.fileSize || "")}</span>
           <button data-download-id="${escapeAttr(p.id)}" class="btn-primary text-xs px-4 py-2 rounded-md">${escapeHtml(t("card_download"))}</button>
@@ -753,8 +851,8 @@ function openModal(product) {
   sponsorLinksPadded = getPaddedSponsorLinks(product, GATE_TOTAL_STEPS - 1); // 3 sponsor steps
 
   modalBadge.textContent = product.blenderVersion || product.platform || "";
-  modalTitle.textContent = product.title;
-  modalDesc.textContent = product.description || "";
+  setDynamicText(modalTitle, product.title);
+  setDynamicText(modalDesc, product.description || "");
   modalFilesize.textContent = product.fileSize || "—";
   modalEngine.textContent = product.engine || product.platform || "—";
   modalLicense.textContent = product.license || "—";
@@ -1122,7 +1220,12 @@ function openViewerModal(product) {
     return;
   }
 
-  viewerTitleEl.textContent = product.title || (hasModel ? t("viewer_title") : t("viewer_title_video"));
+  if (product.title) {
+    setDynamicText(viewerTitleEl, product.title);
+  } else {
+    delete viewerTitleEl.dataset.mtSrc;
+    viewerTitleEl.textContent = hasModel ? t("viewer_title") : t("viewer_title_video");
+  }
   if (viewerHintEl) viewerHintEl.textContent = hasModel ? t("viewer_hint") : t("viewer_hint_video");
 
   if (hasModel) {
@@ -1176,7 +1279,7 @@ let reportProduct = null;
 
 function openReportModal(product) {
   reportProduct = product;
-  reportAssetName.textContent = product.title || "";
+  setDynamicText(reportAssetName, product.title || "");
   reportForm.reset();
   reportModal.classList.remove("hidden");
   reportModal.classList.add("flex");
@@ -1497,14 +1600,15 @@ function renderComments(productId) {
         '<span class="c-date">' + escapeHtml(dateStr) + '</span>' +
       '</div>' +
       '<div class="c-stars">' + starsString(c.rating || 0) + '</div>' +
-      '<div class="c-body">' + escapeHtml(c.text || "") + '</div>' +
+      '<div class="c-body" data-mt-auto="1" data-mt-src="' + escapeAttr(c.text || "") + '">' + escapeHtml(c.text || "") + '</div>' +
     '</div>';
   }).join("");
+  translateDynamic(commentList); // best-effort: translate visitor comments into the current UI language
 }
 
 function openCommentsModal(product) {
   activeCommentProduct = product;
-  commentsAssetName.textContent = product.title || "";
+  setDynamicText(commentsAssetName, product.title || "");
   renderComments(product.id);
   commentForm.reset();
   if (window.grecaptcha && window.commentRecaptchaWidgetId !== null) {
@@ -1658,9 +1762,10 @@ function renderGuestbook() {
           '<span class="c-date">' + escapeHtml(dateStr) + '</span>' +
         '</div>' +
         (c.rating ? '<div class="c-stars">' + starsString(c.rating) + '</div>' : '') +
-        '<div class="c-body">' + escapeHtml(c.text || "") + '</div>' +
+        '<div class="c-body" data-mt-auto="1" data-mt-src="' + escapeAttr(c.text || "") + '">' + escapeHtml(c.text || "") + '</div>' +
       '</div>';
     }).join("");
+    translateDynamic(gbList); // best-effort: translate wall messages into the current UI language
   }
 }
 
