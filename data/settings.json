@@ -1,0 +1,20 @@
+{
+  "gate": {
+    "enable_steps": true,
+    "step_duration": 30,
+    "ad_tags": [
+      "YOUR_VAST_TAG_URL_HERE",
+      "YOUR_VAST_TAG_URL_HERE",
+      "YOUR_VAST_TAG_URL_HERE",
+      "YOUR_VAST_TAG_URL_HERE"
+    ]
+  },
+  "keySystem": {
+    "service": "oelonohub",
+    "whitelistCheckUrl": "https://api.pandauth.com/api/v1/public/whitelist/check",
+    "callbackBaseUrl": "https://api.pandauth.com/api/v1/api/public/ads/callback/oelonohub",
+    "getKeyUrl": "",
+    "returnParamName": "key"
+  }
+}
+
