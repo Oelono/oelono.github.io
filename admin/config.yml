@@ -12,49 +12,46 @@ public_folder: "assets/uploads"
 
 collections:
   - name: "settings"
-    label: "Ad Gate & Key System"
+    label: "Download Gate Settings"
     files:
       - name: "settings"
-        label: "Ad Gate & Key System Settings"
+        label: "4-Step Unlock & Key System"
         file: "data/settings.json"
         format: "json"
         fields:
-          - label: "Download Gate — Ad Slots"
+          # ---------- NEW clean 4-step gate schema ----------
+          - label: "Download Gate — 4-Step Unlock"
             name: "gate"
             widget: "object"
             fields:
-              - label: "Ad Slots (shown in order before every download, replacing the old 4-step flow)"
-                name: "steps"
+              - label: "Enable 4-step unlock"
+                name: "enable_steps"
+                widget: "boolean"
+                default: true
+                hint: "When ON, every download goes through the 4-step in-page video unlock. When OFF, the final download button appears immediately — no steps, no video."
+              - label: "Step duration (seconds)"
+                name: "step_duration"
+                widget: "number"
+                default: 30
+                min: 5
+                max: 120
+                value_type: "int"
+                hint: "How long each of the 4 steps lasts (the video watch timer). Default 30 seconds per step."
+              - label: "Ad tag URLs (VAST / direct video) — one per step"
+                name: "ad_tags"
                 widget: "list"
                 min: 1
                 max: 4
-                summary: "{{fields.label}} — {{fields.provider}} ({{fields.seconds}}s)"
-                fields:
-                  - { label: "Internal ID", name: "id", widget: "string", hint: "Unique, no spaces, e.g. slot1" }
-                  - { label: "Label shown to visitors", name: "label", widget: "string", default: "Ad" }
-                  - label: "Ad Network"
-                    name: "provider"
-                    widget: "select"
-                    options: ["hilltopads", "richads", "custom"]
-                    default: "custom"
-                  - label: "Slot Type"
-                    name: "type"
-                    widget: "select"
-                    options:
-                      - { label: "In-page video (VAST tag — tries to play inline, falls back to a new tab if the ad network blocks it)", value: "vast-video" }
-                      - { label: "New-tab link + timed wait (for Direct Link / popunder style ad codes, e.g. HilltopAds Direct Link)", value: "link-dwell" }
-                    default: "link-dwell"
-                    hint: "Only a real VAST/video ad tag can truly autoplay inline. A HilltopAds \"Direct Link\" is a redirect URL, not a video file — use link-dwell for those."
-                  - label: "Ad Code / URL"
+                summary: "{{fields.url}}"
+                hint: "VAST XML tag URLs (or direct .mp4 links) played inside the download box — one entry per step, in order. Fewer than 4 entries cycle automatically. If a tag can't load, that step falls back to a plain in-page countdown (no new tabs, ever)."
+                field:
+                  - label: "Tag URL"
                     name: "url"
                     widget: "string"
-                    hint: "Paste the ad network's tag URL here. For RichAds-style RTB pre-roll endpoints, do not include ip=/ua= macros — the site fills those in automatically."
-                  - label: "Required watch / wait time (seconds)"
-                    name: "seconds"
-                    widget: "select"
-                    options: [30, 60]
-                    default: 30
-                    hint: "The visitor must watch/wait this long. If they pause or close the ad before this finishes, they are sent back to redo the previous slot."
+                    default: "YOUR_VAST_TAG_URL_HERE"
+                    hint: "Paste your ad network's VAST tag URL, e.g. https://network.example.com/vast?zoneid=123. Direct .mp4 file links also work."
+
+          # ---------- Panda key system (unchanged) ----------
           - label: "Panda Key System (oelonohub)"
             name: "keySystem"
             widget: "object"
@@ -83,7 +80,7 @@ collections:
                 widget: "select"
                 options: ["blender", "games", "roblox"]
                 default: "blender"
-                hint: "Which top-level section this shows up in: blender = Blender Assets, games = My Games, roblox = Roblox Assets. All three use the same 4-step ad/download flow."
+                hint: "Which top-level section this shows up in: blender = Blender Assets, games = My Games, roblox = Roblox Assets. All three use the same 4-step unlock flow."
               - { label: "Title", name: "title", widget: "string" }
               - { label: "Slug / ID", name: "id", widget: "string", hint: "Unique, no spaces, e.g. cyber-samurai-rig" }
               - { label: "Description", name: "description", widget: "text" }
@@ -110,7 +107,7 @@ collections:
                 name: "previewVideoUrl"
                 widget: "file"
                 required: false
-                hint: "Upload a short .mp4 clip to use as the card's hover preview / preview button instead of a 3D model. Only used when the 3D Model field above is left empty — if both are filled, the 3D Model wins."
+                hint: "Upload a short .mp4 clip to use as the card's hover preview / preview button instead of a 3D model. Only used when the 3D Model field above is left empty — if both are filled, the 3D model wins."
               - { label: "Blender Version (Blender assets only)", name: "blenderVersion", widget: "string", required: false, hint: "e.g. 4.2+. Leave empty for Games/Roblox." }
               - label: "Render Engine (Blender assets only)"
                 name: "engine"
@@ -120,27 +117,15 @@ collections:
               - { label: "Platform (Games / Roblox)", name: "platform", widget: "string", required: false, hint: "e.g. \"Windows (.zip)\" for a game, or \"Roblox Studio (.rbxl)\" / \"Roblox Studio (.rbxm)\" for a Roblox asset." }
               - { label: "File Size", name: "fileSize", widget: "string", hint: "e.g. 184 MB" }
               - { label: "License", name: "license", widget: "string", default: "CC0 — Free for personal & commercial use" }
-              - label: "Ad Video URL (Step 1 of the download flow, optional)"
-                name: "adVideoUrl"
-                widget: "file"
-                required: false
-                hint: "Upload or link an .mp4 to play as the 10-second video ad before sponsor steps. If left empty, an AdSense ad block is shown for 10 seconds instead."
               - label: "Tutorial / Explainer Video (optional)"
                 name: "tutorialVideoUrl"
                 widget: "file"
                 required: false
                 hint: "Optional. Upload or link a short .mp4 showing how to download this asset. When set, it plays in a small side panel next to the download popup (muted preview by default; visitors click it to play with sound). Leave empty to hide that panel entirely — it's fully optional, nothing breaks if you skip it."
-              - label: "Sponsor Links (Steps 2–4 of the download flow)"
-                name: "sponsorLinks"
-                widget: "list"
-                hint: "Links a visitor clicks through, in order, before the file unlocks. The flow always shows exactly 3 of these (after the video ad) — if you add fewer than 3, they repeat automatically."
-                min: 1
-                max: 4
-                field: { label: "Link", name: "url", widget: "string" }
               - label: "Google Drive Link"
                 name: "driveLink"
                 widget: "string"
-                hint: "Fallback file location — used if Direct Download URL below is empty."
+                hint: "Fallback file location — used if Direct Download URL below is empty. Automatically converted to a direct in-page download when possible."
               - label: "Direct Download URL (optional, preferred)"
                 name: "downloadUrl"
                 widget: "string"
