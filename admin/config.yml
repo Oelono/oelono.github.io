@@ -44,12 +44,7 @@ collections:
                 max: 4
                 summary: "{{fields.url}}"
                 hint: "VAST XML tag URLs (or direct .mp4 links) played inside the download box — one entry per step, in order. Fewer than 4 entries cycle automatically. If a tag can't load, that step falls back to a plain in-page countdown (no new tabs, ever)."
-                fields:
-                  - label: "Tag URL"
-                    name: "url"
-                    widget: "string"
-                    default: "YOUR_VAST_TAG_URL_HERE"
-                    hint: "Paste your ad network's VAST tag URL, e.g. https://network.example.com/vast?zoneid=123. Direct .mp4 file links also work."
+                field: { label: "Tag URL", name: "url", widget: "string", default: "YOUR_VAST_TAG_URL_HERE" }
 
           # ---------- Panda key system (unchanged) ----------
           - label: "Panda Key System (oelonohub)"
