@@ -67,7 +67,7 @@ const strings = {
     how1_title: "Pick your asset",
     how1_desc: "Browse or search any library, then open its download panel to see the specs.",
     how2_title: "Go through 4 quick steps",
-    how2_desc: "A 10-second video ad, then 3 short sponsor pages — this is what keeps everything free.",
+    how2_desc: "Watch a short in-page video for each of the 4 steps — this is what keeps everything free. No pop-ups, no redirects.",
     how3_title: "Grab the file",
     how3_desc: "The direct download button unlocks right after step 4 — no login, no waiting rooms.",
     footer_built: "Built by Oelono.",
@@ -84,14 +84,22 @@ const strings = {
     modal_license_label: "License",
     modal_drive_btn: "Download final file",
     tutorial_video_caption: "Stuck? Tap to watch how to download — with sound",
-    modal_hint_default: "A sponsor page opens in a new tab to keep this library free.",
+    modal_hint_default: "Watch a short video to unlock your file — everything happens right here on this page.",
+    modal_hint_continue: "Step done — click Continue to open the next one.",
     modal_hint_ready: "Your file is ready — click below for the direct download.",
     modal_hint_video: "Watching the ad — the next step unlocks automatically in a few seconds.",
     unlock_unlocking: (s) => `Unlocking in ${s}s…`,
-    unlock_ready: "Continue to next step",
+    unlock_ready: "Continue",
     step_video_label: "Ad",
     step_of_label: (n, total) => `Step ${n} of ${total}`,
     ad_playing_label: "Advertisement playing…",
+    gate_caption_watch: "Watch the video to unlock this step — everything stays on this page.",
+    gate_caption_ready: "Step complete — continue to unlock the next stage.",
+    gate_fallback_text: "Your ad will appear here shortly. This step unlocks automatically.",
+    gate_fallback_caption: "Preparing your download… please wait.",
+    steps_left_one: "Almost done — 1 step left",
+    steps_left: (n) => `${n} steps left`,
+    steps_all_done: "All steps complete!",
     card_download: "Download",
     results_count: (n) => `${n} asset${n === 1 ? "" : "s"}`,
     nav_request_label: "Request a model",
@@ -383,24 +391,45 @@ async function loadProducts() {
   render();
 }
 
-// Site-wide ad-gate + Panda key-system config, edited from /admin (Decap
-// CMS -> data/settings.json). Falls back to a safe default (the old 3x10s
-// sponsor-link behaviour, no key system) if the file is missing/broken, so
-// a bad edit in the CMS never breaks the download flow entirely.
+// Site-wide 4-step download-gate + Panda key-system config, edited from
+// /admin (Decap CMS -> data/settings.json). NEW clean schema:
+//   gate.enable_steps  — Boolean: run the 4-step unlock or not
+//   gate.step_duration — Number:  seconds each step must be watched (default 30)
+//   gate.ad_tags       — Array:   VAST/video tag URLs, one per step (cycled)
+// Falls back to safe defaults if the file is missing/broken, so a bad CMS
+// edit can never break the download flow entirely.
 window.SITE_SETTINGS = window.SITE_SETTINGS || null;
-async function loadSettings() {
-  const fallback = {
-    gate: { steps: [] },
-    keySystem: { service: "", whitelistCheckUrl: "", callbackBaseUrl: "", getKeyUrl: "", returnParamName: "key" },
+const DEFAULT_STEP_DURATION = 30;
+const PLACEHOLDER_TAG = "YOUR_VAST_TAG_URL_HERE";
+
+function normalizeSettings(json) {
+  const gate = (json && json.gate) || {};
+  const duration = Number(gate.step_duration);
+  const rawTags = Array.isArray(gate.ad_tags) ? gate.ad_tags : [];
+  const tagUrls = rawTags
+    .map(tag => (typeof tag === "string" ? tag : (tag && tag.url)))
+    .filter(url => typeof url === "string" && url.trim() && url.trim() !== PLACEHOLDER_TAG)
+    .map(url => url.trim());
+  return {
+    gate: {
+      enable_steps: typeof gate.enable_steps === "boolean" ? gate.enable_steps : true,
+      step_duration: Number.isFinite(duration) && duration >= 5 ? Math.round(duration) : DEFAULT_STEP_DURATION,
+      ad_tags: tagUrls,
+    },
+    keySystem: Object.assign(
+      { service: "", whitelistCheckUrl: "", callbackBaseUrl: "", getKeyUrl: "", returnParamName: "key" },
+      (json && json.keySystem) || {}
+    ),
   };
+}
+
+async function loadSettings() {
+  const fallback = normalizeSettings(null);
   try {
     const res = await fetch("data/settings.json", { cache: "no-store" });
     if (!res.ok) throw new Error("Failed to load settings.json");
     const json = await res.json();
-    window.SITE_SETTINGS = {
-      gate: { steps: (json.gate && Array.isArray(json.gate.steps)) ? json.gate.steps : [] },
-      keySystem: Object.assign({}, fallback.keySystem, json.keySystem || {}),
-    };
+    window.SITE_SETTINGS = normalizeSettings(json);
   } catch (err) {
     console.error(err);
     window.SITE_SETTINGS = fallback;
@@ -671,7 +700,20 @@ LIB_KEYS.forEach(lib => {
 });
 
 /* =========================================================
-   Download modal — ad-monetized unlock flow
+   Download modal — NEW 4-step in-page video unlock gate
+   ---------------------------------------------------------
+   One compact stage inside the existing download box handles all 4
+   steps. For every step it resolves an ad source from the CMS
+   (settings.gate.ad_tags — VAST XML tag or direct video URL),
+   plays it in the in-page HTML5 player, and credits watch time
+   (video-clock based, loops included) until step_duration seconds
+   are watched. Then the single morphing action button enables:
+     steps 1-3  -> "Continue" (متابعة) unlocks the next stage
+     step 4     -> the button becomes the official "Download"
+                  (تحميل) file link
+   NO new tabs, windows, pop-unders or redirects — ever.
+   If an ad tag can't be resolved (CORS/placeholder/empty), the step
+   degrades to a styled in-page countdown so the flow always works.
    ========================================================= */
 
 const modal = document.getElementById("download-modal");
@@ -681,24 +723,34 @@ const modalDesc = document.getElementById("modal-desc");
 const modalFilesize = document.getElementById("modal-filesize");
 const modalEngine = document.getElementById("modal-engine");
 const modalLicense = document.getElementById("modal-license");
-const unlockBtn = document.getElementById("unlock-btn");
-const unlockLabel = document.getElementById("unlock-label");
-const unlockRingProgress = document.getElementById("unlock-ring-progress");
-const driveBtn = document.getElementById("drive-btn");
 const modalHint = document.getElementById("modal-hint");
 const modalClose = document.getElementById("modal-close");
 const stepIndicator = document.getElementById("step-indicator");
 const progressBar = document.getElementById("progress-bar");
 const progressLabel = document.getElementById("progress-label");
 const progressPercent = document.getElementById("progress-percent");
-const adVideoStep = document.getElementById("ad-video-step");
-const adVideo = document.getElementById("ad-video");
-const adVideoFallback = document.getElementById("ad-video-fallback");
-const adVideoCountdownEl = document.getElementById("ad-video-countdown");
-const adVideoCaption = document.getElementById("ad-video-caption");
 const tutorialPanel = document.getElementById("tutorial-panel");
 const tutorialVideo = document.getElementById("tutorial-video");
 const tutorialVideoToggle = document.getElementById("tutorial-video-toggle");
+
+// --- gate stage refs ---
+const gateStage = document.getElementById("gate-stage");
+const gateStepLabel = document.getElementById("gate-step-label");
+const gateCountdownEl = document.getElementById("gate-countdown");
+const gateVideo = document.getElementById("gate-video");
+const gateVideoLoading = document.getElementById("gate-video-loading");
+const gateLoadingText = document.getElementById("gate-loading-text");
+const gateVideoFallback = document.getElementById("gate-video-fallback");
+const gateFallbackCountdown = document.getElementById("gate-fallback-countdown");
+const gateFallbackText = document.getElementById("gate-fallback-text");
+const gatePlayChip = document.getElementById("gate-play-chip");
+const gateCaption = document.getElementById("gate-caption");
+const gateActionBtn = document.getElementById("gate-action-btn");
+const gateRing = document.getElementById("gate-ring");
+const gateRingProgress = document.getElementById("gate-ring-progress");
+const gateActionIcon = document.getElementById("gate-action-icon");
+const gateActionLabel = document.getElementById("gate-action-label");
+const gateDownloadLink = document.getElementById("gate-download-link");
 
 // Optional site-wide fallback tutorial/explainer video, used when a product
 // doesn't define its own `tutorialVideoUrl`. Leave empty (default) to keep
@@ -739,81 +791,143 @@ if (tutorialVideoToggle) {
   });
 }
 
-// Optional site-wide fallback video ad, used when a product doesn't define
-// its own `adVideoUrl`. Point this at an .mp4 you own/have rights to run as
-// a pre-download ad, e.g. "assets/ads/default-ad.mp4". Left empty by default
-// so, out of the box, step 1 simply shows the AdSense unit for 10s instead.
-window.DEFAULT_AD_VIDEO_URL = window.DEFAULT_AD_VIDEO_URL || "";
-
-// The full gated flow, for EVERY library (Blender / Games / Roblox):
-//   Step 1 -> 10s video ad (auto-plays, auto-advances, no click needed)
-//   Step 2, 3, 4 -> a sponsor link opens in a new tab, then a 10s dwell
-//                   countdown before the visitor can continue
-// After step 4, the "Download final file" button is revealed.
+// ===== NEW 4-STEP IN-PAGE GATE ENGINE =====
+// ---------------------------------------------------------------------------
+// Ad source resolution: each step gets one entry from settings.gate.ad_tags
+// (cycled if fewer than 4 exist). A tag can be:
+//   1) a direct media URL (.mp4 / .webm / .m3u8-free) -> played as-is
+//   2) a VAST 3/4 XML tag URL -> fetched, parsed for <MediaFile>, any
+//      <Wrapper> is followed (up to 3 hops), and the best bitrate MP4
+//      becomes the video source. Standard VAST macros are substituted.
+// If anything fails (network, CORS, no mediafile, placeholder), the step
+// degrades to a styled in-page countdown of the same duration — the flow
+// NEVER breaks and NEVER opens a new tab.
+// ---------------------------------------------------------------------------
 const GATE_TOTAL_STEPS = 4;
-const VIDEO_STEP_SECONDS = 10;
-const COUNTDOWN_SECONDS = 10;
 const RING_CIRCUMFERENCE = 2 * Math.PI * 15.5; // matches r=15.5 in the SVG
-let countdownTimer = null;
-let videoTimer = null;
-let activeProduct = null;
-// activeStage counts completed gate steps, 0..GATE_TOTAL_STEPS.
-// 0 = nothing done. 1 = the video ad finished. 2..4 = that many sponsor
-// steps finished on top of the video. At 4, the final button is revealed.
-let activeStage = 0;
-let sponsorLinksPadded = [];
-// Reference to the sponsor tab opened for the stage currently being timed.
-// Polled every tick so a tab closed before COUNTDOWN_SECONDS elapses
-// cancels credit for that stage instead of silently letting it pass.
-let sponsorWindow = null;
+const MAX_WRAPPER_HOPS = 3;
+const VAST_MACRO_MAP = {
+  CACHEBUSTER: () => Math.round(Math.random() * 1e9),
+  TIMESTAMP: () => encodeURIComponent(new Date().toISOString()),
+  RAND: () => Math.round(Math.random() * 1e9),
+  RANDOM: () => Math.round(Math.random() * 1e9),
+};
 
-const closedEarlyHint = "That sponsor tab was closed too early — reopen it and keep it open for the full countdown.";
-const reopenLabel = "Reopen sponsor link";
-const popupBlockedHint = "Your browser blocked that tab from opening — allow pop-ups for this site, then try again.";
+// --- gate state ---
+let activeProduct = null;      // product whose modal is open
+let gateStep = 0;              // 0-based index of the CURRENT step (0..3)
+let gateAdSource = null;       // resolved { url, type } for this step
+let gateWatchedMs = 0;         // ms actually watched this step (video clock)
+let gateDurationMs = 0;        // required watch time this step
+let gateLastTick = 0;          // performance.now() at last tick
+let gateTicker = null;         // rAF/interval handle
+let gateAwaitingContinue = false; // step done, waiting for متابعة click
+let gateResolver = null;       // active AbortController (VAST fetch)
+let gateRunning = false;       // gate currently active (timer counting)
 
-// Returns the ordered list of sponsor links for a product.
-// Supports the new "sponsorLinks" list field, and falls back to the
-// old single "monetizedLink" field for products created before this change.
-function getSponsorLinks(product) {
-  if (Array.isArray(product.sponsorLinks) && product.sponsorLinks.length) {
-    return product.sponsorLinks
-      .map(link => (typeof link === "string" ? link : link.url))
-      .filter(Boolean);
+function gateSettings() {
+  const g = (window.SITE_SETTINGS && window.SITE_SETTINGS.gate) || {};
+  return {
+    enable_steps: typeof g.enable_steps === "boolean" ? g.enable_steps : true,
+    step_duration: Number.isFinite(g.step_duration) && g.step_duration >= 5 ? g.step_duration : DEFAULT_STEP_DURATION,
+    ad_tags: Array.isArray(g.ad_tags) ? g.ad_tags : [],
+  };
+}
+
+// the ad tag for step index i (0-based), cycling through the list
+function gateTagForStep(i) {
+  const { ad_tags } = gateSettings();
+  if (!ad_tags.length) return null;
+  return ad_tags[i % ad_tags.length];
+}
+
+/* ---------- VAST resolution ---------- */
+
+// substitutes standard VAST macros like [CACHEBUSTER], [TIMESTAMP], [RAND]
+function expandVastMacros(url) {
+  return url.replace(/\[(CACHEBUSTER|TIMESTAMP|RAND|RANDOM)\]/gi, (m, name) => {
+    const fn = VAST_MACRO_MAP[String(name).toUpperCase()];
+    return fn ? String(fn()) : m;
+  });
+}
+
+// true when the tag looks like a direct media file rather than a VAST XML
+function isDirectMediaUrl(url) {
+  return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url);
+}
+
+// picks the best (highest-bitrate) progressive MP4 MediaFile from a VAST body
+function pickBestMediaFile(mediaFiles) {
+  const ranked = mediaFiles
+    .filter(f => f && f.url)
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+  // prefer HTML5-friendly progressive MP4/WebM
+  const progressive = ranked.find(f => f.type && /mp4|webm/i.test(f.type));
+  return progressive || ranked[0] || null;
+}
+
+// minimal VAST 3/4 parser: returns { mediaFiles, wrapperUrl, impressions, errors }
+function parseVastXml(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("VAST XML parse error");
+  const mediaFiles = Array.from(doc.querySelectorAll("MediaFile")).map(el => ({
+    url: (el.textContent || "").trim(),
+    type: el.getAttribute("type") || "",
+    bitrate: Number(el.getAttribute("bitrate")) || 0,
+    width: Number(el.getAttribute("width")) || 0,
+    height: Number(el.getAttribute("height")) || 0,
+  }));
+  const wrapperEl = doc.querySelector("VAST Ad Wrapper");
+  const wrapperUrl = wrapperEl ? (wrapperEl.textContent || "").trim() : null;
+  const impressions = Array.from(doc.querySelectorAll("VAST Ad InLine Impression")).map(el => (el.textContent || "").trim()).filter(Boolean);
+  const errors = Array.from(doc.querySelectorAll("VAST Ad Error")).map(el => (el.textContent || "").trim()).filter(Boolean);
+  const clickThrough = doc.querySelector("VAST Ad InLine Linear Creative VideoClicks ClickThrough");
+  const clickUrl = clickThrough ? (clickThrough.textContent || "").trim() : null;
+  return { mediaFiles, wrapperUrl, impressions, errors, clickUrl };
+}
+
+// Resolves one ad tag to { url, type: "vast" | "direct" } — follows VAST
+// wrappers up to MAX_WRAPPER_HOPS. Never throws to the caller; on failure
+// returns null and the step falls back to the in-page countdown.
+async function resolveAdSource(tagUrl) {
+  const tag = expandVastMacros(String(tagUrl || "").trim());
+  if (!tag) return null;
+  if (isDirectMediaUrl(tag)) return { url: tag, type: "direct" };
+
+  // VAST XML tag — fetch + parse
+  let currentUrl = tag;
+  for (let hop = 0; hop <= MAX_WRAPPER_HOPS; hop++) {
+    try {
+      const res = await fetch(currentUrl, { cache: "no-store", signal: gateResolver && gateResolver.signal });
+      if (!res.ok) throw new Error(`VAST tag HTTP ${res.status}`);
+      const xmlText = await res.text();
+      const parsed = parseVastXml(xmlText);
+      // fire tracking pixels best-effort (imp 1x1), never blocking the flow
+      parsed.impressions.forEach(px => firePixel(px));
+      if (parsed.wrapperUrl) {
+        currentUrl = expandVastMacros(parsed.wrapperUrl);
+        continue;
+      }
+      const best = pickBestMediaFile(parsed.mediaFiles);
+      if (best && best.url) return { url: best.url, type: "vast", clickUrl: parsed.clickUrl || null };
+      throw new Error("VAST tag had no playable MediaFile");
+    } catch (err) {
+      console.warn("[gate] ad tag failed:", err && err.message);
+      return null;
+    }
   }
-  return product.monetizedLink ? [product.monetizedLink] : [];
+  return null;
 }
 
-// Steps 2, 3 and 4 of the gate each need one sponsor link. Whatever the
-// product actually has configured (1, 2, 3, 4...) gets cycled/repeated so
-// there are always exactly `count` (3) of them — if a product has zero
-// sponsor links at all, those steps just become timed waits with no tab.
-function getPaddedSponsorLinks(product, count) {
-  const links = getSponsorLinks(product);
-  if (!links.length) return new Array(count).fill(null);
-  return Array.from({ length: count }, (_, i) => links[i % links.length]);
+// best-effort 1x1 pixel ping (CORS-safe, fire and forget)
+function firePixel(url) {
+  if (!url) return;
+  try { new Image().src = expandVastMacros(url); } catch (e) { /* no-op */ }
 }
 
-function stageHintText(n, total) {
-  return `Step ${n} of ${total} — opening sponsor link in a new tab…`;
-}
+/* ---------- rendering ---------- */
 
-const stepReadyLabel = (n) => `Step ${n} complete`;
-const driveStepLabel = "Drive file download";
-
-// Renders a row of step pills: Step 1, Step 2, ... Step N, Drive download.
-// - completed steps: filled/checked
-// - the current step: highlighted
-// - future steps: dim
-// This is purely visual state driven by activeStage, which only ever
-// advances by exactly one stage per confirmed click (see unlockBtn handler
-// below) — so there is no way to reach a later step without the button
-// for every prior step actually being clicked and its countdown finished.
-// Renders a row of step pills: Step 1 (video ad), Step 2, Step 3, Step 4,
-// then a final "Download" pill. currentStage counts steps already completed
-// (0..totalSteps). Purely visual state — activeStage only ever advances by
-// exactly one per verified step, so there's no way to reach a later pill
-// without every prior step (including the 10s video) actually finishing.
-function renderStepIndicator(totalSteps, currentStage) {
+function renderStepIndicator(totalSteps, currentStep) {
   if (!stepIndicator) return;
   if (totalSteps <= 0) {
     stepIndicator.innerHTML = "";
@@ -821,76 +935,64 @@ function renderStepIndicator(totalSteps, currentStage) {
   }
   const pills = [];
   for (let i = 1; i <= totalSteps; i++) {
-    const done = i <= currentStage;
-    const isVideo = i === 1;
-    const icon = done ? "✓" : (isVideo ? "🎬" : i);
-    const label = isVideo ? (t("step_video_label")) : `Step ${i}`;
+    const done = i < currentStep;      // steps before the current one
+    const active = i === currentStep;
+    const cls = done
+      ? "background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.4); color:var(--ink);"
+      : active
+        ? "background:rgba(157,78,221,0.12); border-color:rgba(157,78,221,0.45); color:#C79BFF;"
+        : "background:transparent; border-color:var(--line); color:var(--ink-dim);";
+    const icon = done ? "\u2713" : "\u25B6";
     pills.push(`
-      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
-        style="${done
-          ? "background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.4); color:var(--ink);"
-          : "background:transparent; border-color:var(--line); color:var(--ink-dim);"}">
+      <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors" style="${cls}">
         ${icon}
-        <span>${label}</span>
-      </div>
-    `);
+        <span>${t("step_of_label")(i, totalSteps)}</span>
+      </div>`);
   }
-  const driveDone = currentStage >= totalSteps;
+  const unlocked = currentStep > totalSteps; // all 4 done
   pills.push(`
     <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
-      style="${driveDone
-        ? "background:rgba(157,78,221,0.12); border-color:rgba(157,78,221,0.4); color:#C79BFF;"
+      style="${unlocked
+        ? "background:rgba(0,240,255,0.12); border-color:rgba(0,240,255,0.4); color:var(--ink);"
         : "background:transparent; border-color:var(--line); color:var(--ink-dim);"}">
-      ${driveDone ? "✓" : "🔒"}
-      <span>${driveStepLabel}</span>
-    </div>
-  `);
+      ${unlocked ? "\u2713" : "\uD83D\uDD12"}
+      <span>${t("modal_drive_btn")}</span>
+    </div>`);
   stepIndicator.innerHTML = pills.join("");
 }
 
-const remainingStepsText = (n) => n === 1 ? "Almost done — 1 step left" : `${n} steps left`;
-const allDoneText = "All steps complete!";
+const remainingStepsText = (n) => n === 1 ? t("steps_left_one") : t("steps_left")(n);
+const allDoneText = () => t("steps_all_done");
 
-// Overall progress across every step, including the final "in progress"
-// countdown fraction — so the bar creeps forward smoothly during each
-// wait too, not just in jumps when a step completes.
-function updateOverallProgress(totalSponsorStages, currentStage, countdownFraction) {
+// Overall progress across all 4 steps + final unlock. fraction = 0..1 of the
+// CURRENT step already watched, so the bar creeps smoothly every frame.
+function updateOverallProgress(totalSteps, currentStep, fraction) {
   if (!progressBar) return;
-  const totalUnits = totalSponsorStages + 1; // +1 for the final drive unlock
-  const completedUnits = currentStage + (countdownFraction || 0);
-  const pct = totalUnits > 0 ? Math.min(100, Math.round((completedUnits / totalUnits) * 100)) : 0;
-
-  progressBar.style.width = `${pct}%`;
-  progressPercent.textContent = `${pct}%`;
-
-  const remaining = totalSponsorStages - currentStage;
-  progressLabel.textContent = remaining > 0
-    ? remainingStepsText(remaining)
-    : allDoneText;
+  const totalUnits = totalSteps + 1; // +1 final download unit
+  const completedUnits = Math.min(currentStep, totalSteps) + Math.min(fraction || 0, 1);
+  const pct = Math.min(100, Math.round((completedUnits / totalUnits) * 100));
+  progressBar.style.width = pct + "%";
+  if (progressPercent) progressPercent.textContent = pct + "%";
+  const remaining = Math.max(totalSteps - currentStep, 0);
+  if (progressLabel) {
+    progressLabel.textContent = remaining > 0 ? remainingStepsText(remaining) : allDoneText();
+  }
 }
+
+/* ---------- modal ---------- */
 
 function openModal(product) {
   activeProduct = product;
-  activeStage = 0;
-  sponsorLinksPadded = getPaddedSponsorLinks(product, GATE_TOTAL_STEPS - 1); // 3 sponsor steps
+  gateStep = 0;
+  stopGateTicker();
+  gateResolverAbort();
 
   modalBadge.textContent = product.blenderVersion || product.platform || "";
   setDynamicText(modalTitle, product.title);
   setDynamicText(modalDesc, product.description || "");
-  modalFilesize.textContent = product.fileSize || "—";
-  modalEngine.textContent = product.engine || product.platform || "—";
-  modalLicense.textContent = product.license || "—";
-
-  // reset state
-  driveBtn.classList.add("hidden");
-  driveBtn.classList.remove("flex");
-  unlockBtn.classList.add("hidden");
-  unlockBtn.disabled = true;
-  unlockRingProgress.style.strokeDasharray = `${RING_CIRCUMFERENCE}`;
-  unlockRingProgress.style.strokeDashoffset = "0";
-
-  renderStepIndicator(GATE_TOTAL_STEPS, 0);
-  updateOverallProgress(GATE_TOTAL_STEPS, 0, 0);
+  modalFilesize.textContent = product.fileSize || "\u2014";
+  modalEngine.textContent = product.engine || product.platform || "\u2014";
+  modalLicense.textContent = product.license || "\u2014";
 
   setupTutorialPanel(product);
 
@@ -898,179 +1000,282 @@ function openModal(product) {
   modal.classList.add("flex");
   document.body.style.overflow = "hidden";
 
-  startVideoGate();
+  const settings = gateSettings();
+  if (!settings.enable_steps) {
+    // gate disabled in CMS -> straight to the final download button
+    revealFinalDownload();
+  } else {
+    startGateStep(1);
+  }
 }
 
-/* ---------- Step 1: the 10-second video ad ---------- */
-function startVideoGate() {
-  adVideoStep.classList.remove("hidden");
-  unlockBtn.classList.add("hidden");
-  driveBtn.classList.add("hidden");
+/* ---------- gate steps ---------- */
+
+function startGateStep(stepNumber) {
+  gateStep = stepNumber - 1;
+  const { step_duration } = gateSettings();
+  gateDurationMs = Math.max(5, step_duration) * 1000;
+  gateWatchedMs = 0;
+  gateAwaitingContinue = false;
+  gateRunning = true;
+  gateLastTick = performance.now();
+
+  // UI reset for this step
+  gateStage.classList.remove("hidden");
+  gateDownloadLink.classList.add("hidden");
+  gateDownloadLink.classList.remove("flex");
+  gateActionBtn.classList.remove("hidden");
+  gateActionBtn.disabled = true;
+  gateActionBtn.classList.remove("ready");
+  gateActionIcon.classList.add("hidden");
+  gateRing.classList.remove("hidden");
+  gateActionLabel.textContent = t("unlock_unlocking")(Math.ceil(gateDurationMs / 1000));
+  gateRingProgress.style.strokeDasharray = String(RING_CIRCUMFERENCE);
+  gateRingProgress.style.strokeDashoffset = "0";
+  gateStepLabel.textContent = t("step_of_label")(stepNumber, GATE_TOTAL_STEPS);
+  gateCountdownEl.textContent = String(Math.ceil(gateDurationMs / 1000));
+  gateCaption.textContent = t("gate_caption_watch");
   modalHint.textContent = t("modal_hint_video");
-  if (adVideoCaption) adVideoCaption.textContent = `${t("step_of_label")(1, GATE_TOTAL_STEPS)} — ${t("ad_playing_label")}`;
 
-  const src = (activeProduct && activeProduct.adVideoUrl) || window.DEFAULT_AD_VIDEO_URL || "";
-  const showFallback = () => {
-    adVideo.classList.add("hidden");
-    adVideoFallback.classList.remove("hidden");
-    adVideoFallback.style.display = "flex";
-    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) { /* AdSense not loaded (adblock) — the 10s timer still runs */ }
-  };
+  renderStepIndicator(GATE_TOTAL_STEPS, stepNumber);
+  updateOverallProgress(GATE_TOTAL_STEPS, stepNumber - 1, 0);
 
-  adVideoFallback.classList.add("hidden");
-  adVideoFallback.style.display = "none";
-  adVideo.classList.remove("hidden");
-  adVideo.onerror = showFallback;
-  if (src) {
-    adVideo.src = src;
-    adVideo.load();
-    adVideo.play().catch(() => { /* autoplay can be blocked; the countdown still runs regardless */ });
+  // reset video element state from any previous step
+  gateVideo.pause();
+  gateVideo.removeAttribute("src");
+  gateVideo.load();
+  hideGateOverlays();
+  gatePlayChip.classList.remove("shown");
+  gatePlayChip.classList.add("hidden");
+
+  // resolve this step's ad source (VAST or direct) asynchronously
+  const tag = gateTagForStep(gateStep);
+  if (tag) {
+    gateResolverAbort();
+    gateResolver = new AbortController();
+    showGateLoading(true);
+    resolveAdSource(tag).then(source => {
+      if (!gateRunning || gateAwaitingContinue) return; // closed/moved on
+      showGateLoading(false);
+      if (source && source.url) {
+        attachAdVideo(source.url);
+      } else {
+        startFallbackStep();
+      }
+    });
   } else {
-    showFallback();
+    startFallbackStep();
   }
 
-  let remaining = VIDEO_STEP_SECONDS;
-  adVideoCountdownEl.textContent = remaining;
-  clearInterval(videoTimer);
-  videoTimer = setInterval(() => {
-    remaining -= 1;
-    adVideoCountdownEl.textContent = Math.max(remaining, 0);
-    updateOverallProgress(GATE_TOTAL_STEPS, 0, 1 - Math.max(remaining, 0) / VIDEO_STEP_SECONDS);
-    if (remaining <= 0) {
-      clearInterval(videoTimer);
-      try { adVideo.pause(); } catch (e) { /* no-op */ }
-      adVideoStep.classList.add("hidden");
-      activeStage = 1;
-      renderStepIndicator(GATE_TOTAL_STEPS, activeStage);
-      updateOverallProgress(GATE_TOTAL_STEPS, activeStage, 0);
-      beginSponsorStage();
-    }
-  }, 1000);
+  startGateTicker();
 }
 
-/* ---------- Steps 2–4: sponsor link + 10s dwell countdown each ---------- */
-function beginSponsorStage() {
-  unlockBtn.classList.remove("hidden");
-  unlockBtn.disabled = false;
-  unlockRingProgress.style.strokeDashoffset = "0";
-  unlockLabel.textContent = t("unlock_ready");
-  modalHint.textContent = stageHintText(activeStage + 1, GATE_TOTAL_STEPS);
+function hideGateOverlays() {
+  [gateVideoLoading, gateVideoFallback].forEach(el => {
+    if (!el) return;
+    el.classList.remove("shown");
+    el.classList.add("hidden");
+  });
 }
 
-// windowRef is the tab opened for the stage we're timing (or null if this
-// stage has no sponsor link). The interval checks windowRef.closed on every
-// tick — if the visitor closes that tab before the countdown finishes, the
-// stage is cancelled instead of quietly being granted anyway.
-function startCountdown(windowRef) {
-  sponsorWindow = windowRef || null;
-  const total = COUNTDOWN_SECONDS;
-  let remaining = total;
-  unlockLabel.textContent = t("unlock_unlocking")(remaining);
-
-  clearInterval(countdownTimer);
-  countdownTimer = setInterval(() => {
-    if (sponsorWindow && sponsorWindow.closed) {
-      clearInterval(countdownTimer);
-      handleClosedEarly();
-      return;
-    }
-
-    remaining -= 1;
-    const progress = 1 - remaining / total;
-    unlockRingProgress.style.strokeDashoffset = `${RING_CIRCUMFERENCE * progress}`;
-    updateOverallProgress(GATE_TOTAL_STEPS, activeStage - 1, progress);
-
-    if (remaining <= 0) {
-      clearInterval(countdownTimer);
-      sponsorWindow = null;
-      onCountdownVerified();
-    } else {
-      unlockLabel.textContent = t("unlock_unlocking")(remaining);
-    }
-  }, 1000);
+function showGateLoading(on) {
+  if (!gateVideoLoading) return;
+  gateVideoLoading.classList.toggle("shown", !!on);
+  gateVideoLoading.classList.toggle("hidden", !on);
 }
 
-// Runs once a stage's countdown finishes without its tab closing early.
-// If all 4 gate steps (video + 3 sponsor stages) are now verified, reveal
-// the final direct-download button; otherwise re-enable the button so the
-// visitor can move on to the next stage.
-function onCountdownVerified() {
-  if (activeStage >= GATE_TOTAL_STEPS) {
-    driveBtn.href = (activeProduct && (activeProduct.downloadUrl || activeProduct.driveLink)) || "#";
-    unlockBtn.classList.add("hidden");
-    driveBtn.classList.remove("hidden");
-    driveBtn.classList.add("flex");
-    modalHint.textContent = t("modal_hint_ready");
-    updateOverallProgress(GATE_TOTAL_STEPS, activeStage, 0);
+function attachAdVideo(url) {
+  if (!gateRunning || gateAwaitingContinue) return;
+  gateVideoFallback.classList.add("hidden");
+  gateVideoFallback.classList.remove("shown");
+  gateVideo.src = url;
+  gateVideo.load();
+  const tryPlay = gateVideo.play();
+  if (tryPlay && tryPlay.catch) tryPlay.catch(() => showGatePlayChip());
+  // if the ad is blocked from autoplaying, show the center play chip
+  gateVideo.onplaying = () => { hideGatePlayChip(); };
+}
+
+function showGatePlayChip() {
+  if (!gatePlayChip) return;
+  gatePlayChip.classList.remove("hidden");
+  gatePlayChip.classList.add("shown");
+}
+
+function hideGatePlayChip() {
+  if (!gatePlayChip) return;
+  gatePlayChip.classList.add("hidden");
+  gatePlayChip.classList.remove("shown");
+}
+
+// Styled in-page countdown used when no ad could be resolved — same
+// duration, same progress behaviour, still fully inside the box.
+function startFallbackStep() {
+  if (!gateRunning || gateAwaitingContinue) return;
+  gateVideoLoading.classList.add("hidden");
+  gateVideoLoading.classList.remove("shown");
+  gateVideoFallback.classList.remove("hidden");
+  gateVideoFallback.classList.add("shown");
+  gateFallbackText.textContent = t("gate_fallback_text");
+  gateFallbackCountdown.textContent = String(Math.ceil((gateDurationMs - gateWatchedMs) / 1000));
+  gateCaption.textContent = t("gate_fallback_caption");
+}
+
+/* ---------- watch-time ticker (video-clock based) ---------- */
+
+// The step duration counts REAL watch time: while an ad video is actually
+// playing (even across loops), the watch clock advances; while paused it
+// stands still. When no ad is playable (fallback state), plain wall time
+// counts instead so the step still completes on schedule. A 250ms ticker
+// samples both clocks, keeping countdown + progress bar in sync.
+let lastShownRemainS = -1;
+function startGateTicker() {
+  stopGateTicker();
+  lastShownRemainS = -1;
+  gateRunning = true;              // the ticker IS the running clock
+  gateLastTick = performance.now(); // clean start for the first delta
+  gateTicker = setInterval(gateTick, 250);
+  gateTick();
+}
+
+function stopGateTicker() {
+  if (gateTicker !== null) {
+    clearInterval(gateTicker);
+    gateTicker = null;
+  }
+  gateRunning = false;
+}
+
+function gateTick() {
+  if (!gateRunning || gateAwaitingContinue) return;
+  const now = performance.now();
+  const wallDelta = now - gateLastTick;
+  gateLastTick = now;
+  if (wallDelta <= 0 || wallDelta > 2000) return; // tab hidden / throttled — don't credit
+
+  const fallbackVisible = isFallbackVisible();
+  const adPlaying = !fallbackVisible &&
+    !gateVideo.paused && !gateVideo.ended && !gateVideo.error && !!gateVideo.currentSrc;
+
+  if (adPlaying || fallbackVisible) gateWatchedMs += wallDelta;
+
+  const remainingMs = Math.max(gateDurationMs - gateWatchedMs, 0);
+  const remainS = Math.ceil(remainingMs / 1000);
+  gateCountdownEl.textContent = String(remainS);
+  if (fallbackVisible && gateFallbackCountdown) gateFallbackCountdown.textContent = String(remainS);
+  if (remainS !== lastShownRemainS) {
+    lastShownRemainS = remainS;
+    gateActionLabel.textContent = t("unlock_unlocking")(remainS);
+  }
+
+  const fraction = gateWatchedMs / gateDurationMs;
+  gateRingProgress.style.strokeDashoffset = String(RING_CIRCUMFERENCE * Math.min(fraction, 1));
+  updateOverallProgress(GATE_TOTAL_STEPS, gateStep, fraction);
+
+  if (remainingMs <= 0) finishStepWatch();
+}
+
+function isFallbackVisible() {
+  return gateVideoFallback && !gateVideoFallback.classList.contains("hidden");
+}
+
+/* ---------- step completion ---------- */
+
+function finishStepWatch() {
+  gateAwaitingContinue = true;
+  stopGateTicker();
+  try { gateVideo.pause(); } catch (e) { /* no-op */ }
+  hideGatePlayChip();
+
+  const isLastStep = gateStep >= GATE_TOTAL_STEPS - 1;
+  renderStepIndicator(GATE_TOTAL_STEPS, isLastStep ? GATE_TOTAL_STEPS + 1 : gateStep + 1);
+
+  if (isLastStep) {
+    revealFinalDownload();
   } else {
-    unlockBtn.disabled = false;
-    unlockLabel.textContent = t("unlock_ready");
+    // "Continue" (متابعة) — unlocks the next stage in the same box
+    gateActionBtn.disabled = false;
+    gateActionBtn.classList.add("ready");
+    gateRing.classList.add("hidden");
+    gateActionIcon.classList.add("hidden");
+    gateActionLabel.textContent = t("unlock_ready");
+    gateCaption.textContent = t("gate_caption_ready");
+    modalHint.textContent = t("modal_hint_continue");
+    updateOverallProgress(GATE_TOTAL_STEPS, gateStep + 1, 0);
   }
 }
 
-// Called when the sponsor tab for the stage being timed closes before the
-// countdown completes. Rolls that stage's "done" credit back (never below 1,
-// since the video step can't be undone) so the click handler re-opens the
-// same link on the next click instead of skipping ahead.
-function handleClosedEarly() {
-  sponsorWindow = null;
+// Step 4 finished -> the action button becomes the official file download.
+function revealFinalDownload() {
+  const url = (activeProduct && (activeProduct.downloadUrl || activeProduct.driveLink)) || "#";
+  gateDownloadLink.href = url;
+  gateDownloadLink.classList.remove("hidden");
+  gateDownloadLink.classList.add("flex");
+  gateActionBtn.classList.add("hidden");
+  gateStage.classList.add("hidden");
+  gateAwaitingContinue = true;
+  stopGateTicker();
+  renderStepIndicator(GATE_TOTAL_STEPS, GATE_TOTAL_STEPS + 1);
+  updateOverallProgress(GATE_TOTAL_STEPS, GATE_TOTAL_STEPS, 1); // final unit done -> 100%
+  modalHint.textContent = t("modal_hint_ready");
+}
+
+/* ---------- interactions ---------- */
+
+gateActionBtn.addEventListener("click", () => {
+  if (gateActionBtn.disabled) return;
+  if (!gateAwaitingContinue) return; // still watching — button stays inert
   if (!activeProduct) return;
+  const nextStep = gateStep + 2; // moving to step N+1 (1-based)
+  if (nextStep > GATE_TOTAL_STEPS) {
+    revealFinalDownload();
+    return;
+  }
+  startGateStep(nextStep);
+});
 
-  activeStage = Math.max(1, activeStage - 1);
-  renderStepIndicator(GATE_TOTAL_STEPS, activeStage);
-  updateOverallProgress(GATE_TOTAL_STEPS, activeStage, 0);
-
-  unlockRingProgress.style.strokeDashoffset = "0";
-  unlockBtn.disabled = false;
-  unlockLabel.textContent = reopenLabel;
-  modalHint.textContent = closedEarlyHint;
+if (gatePlayChip) {
+  gatePlayChip.addEventListener("click", () => {
+    hideGatePlayChip();
+    gateVideo.play().catch(() => { /* still blocked -> fallback below */ });
+    setTimeout(() => {
+      if (!gateVideo.paused) return;
+      // autoplay still refused after a direct gesture: degrade gracefully
+      if (!isFallbackVisible()) startFallbackStep();
+    }, 400);
+  });
 }
 
-unlockBtn.addEventListener("click", () => {
-  if (unlockBtn.disabled || !activeProduct || activeStage < 1) return;
-
-  // activeStage is 1, 2 or 3 here (video already done); the sponsor link
-  // for the step about to be attempted is at index (activeStage - 1) in
-  // the padded 3-link array.
-  const link = sponsorLinksPadded[activeStage - 1];
-
-  // Open this stage's sponsor link in a new tab. window.open returns null
-  // when the browser's pop-up blocker prevents the tab from opening at
-  // all — noopener means we can't detect that as "closed", so we check
-  // for null explicitly instead of pretending the tab exists.
-  let openedWindow = null;
-  if (link) {
-    openedWindow = window.open(link, "_blank");
-    if (!openedWindow) {
-      unlockLabel.textContent = t("unlock_ready");
-      modalHint.textContent = popupBlockedHint;
-      unlockBtn.disabled = false;
-      return; // stage not credited — nothing to time, nothing advances
-    }
-  }
-
-  activeStage += 1;
-  renderStepIndicator(GATE_TOTAL_STEPS, activeStage);
-  unlockBtn.disabled = true;
-
-  // activeStage only ever moves forward by 1 here, and the button stays
-  // disabled until a fresh countdown finishes without the tab being closed
-  // early, so repeatedly clicking / closing early cannot fast-forward past
-  // a step — whether it's step 2, 3, or the final step 4.
-  modalHint.textContent = (activeStage < GATE_TOTAL_STEPS)
-    ? stageHintText(activeStage + 1, GATE_TOTAL_STEPS)
-    : t("modal_hint_default");
-  startCountdown(openedWindow);
+gateVideo.addEventListener("click", () => {
+  // clicking the ad video toggles pause/resume (in-page, no pop-unders)
+  if (gateVideo.paused) gateVideo.play().catch(() => {});
+  else gateVideo.pause();
 });
+
+function gateResolverAbort() {
+  if (gateResolver) {
+    try { gateResolver.abort(); } catch (e) { /* no-op */ }
+    gateResolver = null;
+  }
+}
 
 function closeModal() {
   modal.classList.add("hidden");
   modal.classList.remove("flex");
   document.body.style.overflow = "";
-  clearInterval(countdownTimer);
-  clearInterval(videoTimer);
-  try { adVideo.pause(); } catch (e) { /* no-op */ }
-  adVideoStep.classList.add("hidden");
+  // stop the gate cleanly: timer, ad fetch, video, overlays
+  gateAwaitingContinue = true;
+  stopGateTicker();
+  gateResolverAbort();
+  hideGatePlayChip();
+  try { gateVideo.pause(); } catch (e) { /* no-op */ }
+  gateVideo.removeAttribute("src");
+  gateVideo.load();
+  hideGateOverlays();
+  gateStage.classList.add("hidden");
+  gateActionBtn.classList.add("hidden");
+  gateDownloadLink.classList.add("hidden");
+  gateDownloadLink.classList.remove("flex");
   try { tutorialVideo.pause(); } catch (e) { /* no-op */ }
   tutorialPanel.classList.add("hidden");
   tutorialPanel.classList.remove("played");
@@ -1871,6 +2076,10 @@ document.addEventListener("keydown", (e) => {
 
 initLanguage();
 loadProducts();
+// Load the CMS-editable gate/key settings BEFORE the visitor can click a
+// download button — this used to be defined but never invoked (bug), so the
+// gate always ran on hard-coded defaults. Now settings.json is actually read.
+loadSettings();
 // Pull the shared data/comments.json from GitHub so every visitor sees
 // the same comments/guestbook messages, not just whoever is currently
 // submitting one. (This call used to be missing entirely — the function
