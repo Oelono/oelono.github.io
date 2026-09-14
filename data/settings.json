@@ -3,10 +3,10 @@
     "enable_steps": true,
     "step_duration": 30,
     "ad_tags": [
-      "YOUR_VAST_TAG_URL_HERE",
-      "YOUR_VAST_TAG_URL_HERE",
-      "YOUR_VAST_TAG_URL_HERE",
-      "YOUR_VAST_TAG_URL_HERE"
+      "https://faithfuloccasion.com/dLm.F/zHdDGcNxvaZlGzUc/Ketmw9quXZ/UXl/kGPmTycC0/MrjTQVxgM/zEMbtXNrzTQ-y/NlDREQzHNAwh",
+      "https://16793.rtb.adp3.net/pre-roll-rp?pubid=1022706&siteid=407198&ip=[IP]&ua=[USER_AGENT]",
+      "https://faithfuloccasion.com/dLm.F/zHdDGcNxvaZlGzUc/Ketmw9quXZ/UXl/kGPmTycC0/MrjTQVxgM/zEMbtXNrzTQ-y/NlDREQzHNAwh",
+      "https://16793.rtb.adp3.net/pre-roll-rp?pubid=1022706&siteid=407198&ip=[IP]&ua=[USER_AGENT]"
     ]
   },
   "keySystem": {
@@ -17,4 +17,3 @@
     "returnParamName": "key"
   }
 }
-
