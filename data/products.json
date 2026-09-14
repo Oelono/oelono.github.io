@@ -1,63 +1,46 @@
 {
   "products": [
     {
-      "license": "CC0 — Free for personal & commercial use",
-      "engine": "Cycles / Eevee",
-      "driveLink": "https://drive.google.com/file/d/1EKwT88Lil42mOrGaM-Iv13tBG0d-fmQ0/view?usp=sharing",
-      "monetizedLink": "https://example-monetag-link.com/replace-me",
-      "modelUrl": "assets/uploads/upload_astin_martin.glb.glb",
-      "thumbnail": "assets/uploads/1000118251.png",
-      "previewImage": "assets/uploads/1000118251.png",
-      "title": "Cyber Samurai — Rigged Character",
-      "blenderVersion": "4.2+",
       "library": "blender",
+      "title": "Cyber Samurai — Rigged Character",
       "id": "cyber-samurai-rig",
       "description": "A fully rigged cyberpunk samurai with facial controls, IK/FK switching, and a PBR material set built for Eevee and Cycles alike.",
-      "fileSize": "184 MB",
       "category": "Characters",
-      "sponsorLinks": [
-        "https://discord.com/quests/1533985343433474278",
-        "https://discord.com/quests/1533985343433474278",
-        "https://discord.com/quests/1533985343433474278",
-        "https://discord.com/quests/1533985343433474278"
-      ]
+      "thumbnail": "assets/uploads/1000118251.png",
+      "previewImage": "assets/uploads/1000118251.png",
+      "modelUrl": "assets/uploads/upload_astin_martin.glb.glb",
+      "blenderVersion": "4.2+",
+      "engine": "Cycles / Eevee",
+      "fileSize": "184 MB",
+      "license": "CC0 — Free for personal & commercial use",
+      "driveLink": "https://drive.google.com/file/d/1EKwT88Lil42mOrGaM-Iv13tBG0d-fmQ0/view?usp=sharing"
     },
     {
-      "license": "Free to play — © Oelono",
-      "driveLink": "https://drive.google.com/file/d/REPLACE_WITH_YOUR_GAME_FILE_ID/view?usp=sharing",
-      "thumbnail": "https://placehold.co/600x400/0B0C10/00F0FF?text=My+Game",
-      "platform": "Windows (.zip)",
-      "title": "Sample Game Build — Replace me",
       "library": "games",
+      "title": "Sample Game Build — Replace me",
       "id": "sample-game-build",
       "description": "Placeholder entry for the My Games library. Duplicate this block in the CMS (or admin panel) for each game you want to list, then update the title, thumbnail, file size and download link.",
-      "fileSize": "512 MB",
       "category": "Full Games",
-      "sponsorLinks": [
-        "https://www.profitableratecpmnetwork.com/rhc6k07un1?key=6a2df7a6e1ce436025c5790bd1206450",
-        "https://www.profitableratecpmnetwork.com/vfme1jyp5h?key=211a96ad64a3b3105e72d73f1066a139",
-        "https://www.profitableratecpmnetwork.com/zxay84wbuf?key=9154b563648f1892a7934bc151a850f9"
-      ]
+      "thumbnail": "https://placehold.co/600x400/0B0C10/00F0FF?text=My+Game",
+      "platform": "Windows (.zip)",
+      "fileSize": "512 MB",
+      "license": "Free to play — © Oelono",
+      "driveLink": "https://drive.google.com/file/d/REPLACE_WITH_YOUR_GAME_FILE_ID/view?usp=sharing"
     },
     {
+      "library": "roblox",
+      "title": "Video in roblox studio",
+      "id": "Video-roblox-studio",
+      "description": "i turn roblox into cinema, roblox now can make a video on it\nby using some tools and script, in roblox studio, all tool you need \nis sprite video into photos, and script that i create will do all work \ndo not change the name of photo, you need to change name photo in script, if you want help",
+      "category": "Scripts",
+      "thumbnail": "assets/uploads/robloxcimaen.jfif",
+      "previewImage": "assets/uploads/robloxcimaar.jfif",
+      "previewVideoUrl": "assets/uploads/videoinroblox.mp4",
+      "platform": "Roblox Studio (.rbxl) (.rar)",
+      "fileSize": "194MB",
       "license": "Free for personal & commercial use in your own Roblox projects",
       "driveLink": "https://drive.google.com/file/d/1ufWbxlvnsisSKX8LoCWc0RLw8aF47NDU/view?usp=sharing",
-      "thumbnail": "assets/uploads/robloxcimaen.jfif",
-      "featured": true,
-      "platform": "Roblox Studio (.rbxl) (.rar)",
-      "previewImage": "assets/uploads/robloxcimaar.jfif",
-      "title": "Video in roblox studio ",
-      "library": "roblox",
-      "id": "Video-roblox-studio",
-      "previewVideoUrl": "assets/uploads/videoinroblox.mp4",
-      "description": "i turn roblox into cinema,  roblox now can make a video on it\nby using some tools and script,  in roblox studio,  all tool you need \nis sprite video  into photos,  and script that i create will do all work \ndo not change the name of photo,  you need to change name photo in script,  if you want help",
-      "fileSize": "194MB",
-      "category": "Scripts",
-      "sponsorLinks": [
-        "https://www.profitableratecpmnetwork.com/rhc6k07un1?key=6a2df7a6e1ce436025c5790bd1206450",
-        "https://www.profitableratecpmnetwork.com/vfme1jyp5h?key=211a96ad64a3b3105e72d73f1066a139",
-        "https://www.profitableratecpmnetwork.com/zxay84wbuf?key=9154b563648f1892a7934bc151a850f9"
-      ]
+      "featured": true
     }
   ]
 }
