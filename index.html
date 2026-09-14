@@ -239,6 +239,31 @@ background: var(--bg-raised);
 border:1px solid var(--line);
 animation: rise .3s cubic-bezier(.22,.9,.3,1) both;
 }
+/* ---------- 4-step in-page unlock gate (NEW) ---------- */
+/* Everything the gate shows lives INSIDE the existing download box —
+   video frame, countdown, and the morphing action button. */
+.gate-actions{ display:flex; flex-direction:column; gap:8px; }
+.gate-overlay{ display:none; }
+.gate-overlay.shown{ display:flex; }
+.gate-spinner{
+width:28px; height:28px; border-radius:9999px;
+border:2px solid rgba(255,255,255,0.15); border-top-color:#00F0FF;
+animation: gate-spin .8s linear infinite;
+}
+@keyframes gate-spin{ to{ transform: rotate(360deg); } }
+.gate-fallback-ring{
+width:64px; height:64px; border-radius:9999px;
+border:2px solid rgba(0,240,255,0.35); border-top-color:#00F0FF;
+display:flex; align-items:center; justify-content:center;
+font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:20px; color:#fff;
+animation: gate-spin 1.4s linear infinite;
+}
+.gate-fallback-ring span{ animation: gate-spin 1.4s linear infinite reverse; }
+#gate-countdown-badge{ min-width:44px; text-align:center; }
+#gate-play-chip.shown{ display:flex; }
+#gate-action-btn.ready{ opacity:1; cursor:pointer; }
+#gate-action-btn.ready:hover{ transform: translateY(-1px) scale(1.015); }
+#gate-video{ background:#000; }
 /* Optional "how to download" tutorial video panel — sits beside the
    download popup (stacks below it on narrow/mobile screens). Muted
    looping preview by default; .played hides the instructional
@@ -682,15 +707,15 @@ class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)]
 <div class="grid md:grid-cols-3 gap-8">
 <div>
 <h3 class="font-semibold mb-1.5" data-i18n="how1_title">Pick your asset</h3>
-<p class="text-sm text-[var(--ink-dim)]" data-i18n="how1_desc">Browse or search the library, then open any asset's download panel to see its specs.</p>
+<p class="text-sm text-[var(--ink-dim)]" data-i18n="how1_desc">Browse or search any library, then open any asset's download panel to see its specs.</p>
 </div>
 <div>
-<h3 class="font-semibold mb-1.5" data-i18n="how2_title">Unlock the link</h3>
-<p class="text-sm text-[var(--ink-dim)]" data-i18n="how2_desc">A short sponsor page opens in a new tab — this is what keeps the library free to run.</p>
+<h3 class="font-semibold mb-1.5" data-i18n="how2_title">Go through 4 quick steps</h3>
+<p class="text-sm text-[var(--ink-dim)]" data-i18n="how2_desc">Watch a short in-page video for each of the 4 steps — this is what keeps everything free. No pop-ups, no redirects.</p>
 </div>
 <div>
 <h3 class="font-semibold mb-1.5" data-i18n="how3_title">Grab the file</h3>
-<p class="text-sm text-[var(--ink-dim)]" data-i18n="how3_desc">Your Google Drive link unlocks right after — no login, no waiting rooms.</p>
+<p class="text-sm text-[var(--ink-dim)]" data-i18n="how3_desc">The direct download button unlocks right after step 4 — no login, no waiting rooms.</p>
 </div>
 </div>
 </div>
@@ -863,355 +888,4 @@ class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)]
 <li>للتعليق في الموقع يفضل ذكر اسمك الشخصي. يمكنك استخدام اسم مستعار، لكن لا يسمح أبدًا بانتحال اسم أي شخص أو هيئة.</li>
 <li>يفضل ذكر بريدك الإلكتروني الحقيقي عند التعليق. الموقع يلتزم بعدم استخدام هذا البريد في أي نشاط سوى المراسلات الشخصية، ويلتزم بألا يسلم بريدك إلى أي طرف ثالث دون إذن مسبق منك.</li>
 <li>يجب عليك ألا تعدل أو تكيف الموقع ولا تستخدمه بطرق غير مشروعة أو بأي طرق أخرى يمكن أن تضر أو تعطل الموقع.</li>
-<li>يقوم الموقع بجمع بعض البيانات الخاصة بك، مثل نوع المتصفح، نظام التشغيل، رقم IP... إلخ. الهدف من جمع هذه البيانات هو تحسين مستوى الخدمة.</li>
-<li>يحق للموقع مشاركة هذه البيانات مع طرف ثالث دون أن يقوم بالربط بين هذه البيانات وهويتك الشخصية.</li>
-</ul>
-<p>قد تتغيّر هذه الاتفاقية من فترة لأخرى بما نراه مناسباً لهدف الموقع، لذا أرجو منك مراجعتها والتقيّد بما فيها.</p>
-<h4>إخلاء المسؤولية</h4>
-<p>نشر إعلانات المنتجات أو الخدمات والروابط الدعائية لا يعني تزكيتنا لها، ولا نقدم أي ضمانات جودة بخصوصها.</p>
-<p>نعرض بالموقع مراجعات لخدمات مواقع ومؤسسات. قد تكون تلك المراجعات مدفوعة الأجر وقد تكون مجانية، وبعضها الآخر قد نستخدم فيه روابط affiliate تتيح لنا تحصيل عمولة معينة في حالة اشتراكك أو شرائك من ذلك الرابط. ندوّن هذه المراجعات استناداً إلى المعلومات التي نحصل عليها من مدراء تسويق هذه المواقع والمؤسسات، أو من تجربة خاصة أو من خلال معلومات عامة، ومنه فلا نقدم لك أي ضمانات خاصة بخصوص جودة المنتجات أو الخدمات.</p>
-<p>نعرض كذلك محتوى قد يحمل في مضمونه سيرا ذاتية لأشخاص، مستنداً إلى المراسلات أو المقابلات التي تتم بيننا، ورغم أننا سنطّلع على الشهادات والوثائق التي تبين المستوى والكفاءات، إلا أننا لا نضمن صحتها 100%، ومنه فإن أي مغالطات تقع على مسؤولية أصحابها.</p>
-<p>لا نتحمل مسؤولية الأضرار التي قد تكون ناتجة عن عدم حسن تطبيق بعض الشروحات.</p>
-<p>استعمالك وتصفحك للموقع يعني موافقتك الكاملة على جميع الشروط الواردة في هذه الصفحة. إذا كنت لا توافق على الشروط الموجودة في هذه الصفحة، لا يسمح لك تصفح الموقع ومشاهدة محتوياته، ويجب عليك التوقف عن استخدامه الآن.</p>
-</div>
-</div>
-</div>
-
-<!-- LEAVE-SITE CONFIRMATION MODAL -->
-<div id="leave-site-modal" class="glass-overlay fixed inset-0 z-50 hidden items-center justify-center p-4">
-<div class="glass-panel relative w-full max-w-sm rounded-2xl p-6 md:p-7 text-center">
-<h3 class="font-display text-lg font-bold mb-2">مغادرة الموقع</h3>
-<p class="text-sm text-[var(--ink-dim)] mb-6">أنت على وشك الانتقال إلى صفحة خارج Oelono Blender Asset. هل توافق على المتابعة؟</p>
-<div class="flex items-center justify-center gap-3">
-<button type="button" id="leave-site-cancel" class="chip px-5 py-2.5 rounded-md text-sm">خروج</button>
-<a id="leave-site-confirm" href="#" class="btn-primary px-5 py-2.5 rounded-md text-sm">موافق</a>
-</div>
-</div>
-</div>
-
-<!-- DOWNLOAD MODAL -->
-<div id="download-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
-<div class="modal-panel relative w-full max-w-md rounded-xl p-6 md:p-7">
-<button id="modal-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-</button>
-<span id="modal-badge" class="badge inline-block px-2.5 py-1 rounded mb-4"></span>
-<h3 id="modal-title" class="font-display text-xl font-semibold pr-6"></h3>
-<p id="modal-desc" class="text-sm text-[var(--ink-dim)] mt-2 leading-relaxed"></p>
-<dl class="grid grid-cols-2 gap-y-3 mt-5 text-sm border-t border-[var(--line)] pt-5">
-<dt class="text-[var(--ink-dim)]" data-i18n="modal_filesize_label">File size</dt>
-<dd id="modal-filesize" class="text-right"></dd>
-<dt class="text-[var(--ink-dim)]" data-i18n="modal_engine_label">Render engine</dt>
-<dd id="modal-engine" class="text-right"></dd>
-<dt class="text-[var(--ink-dim)]" data-i18n="modal_license_label">License</dt>
-<dd id="modal-license" class="text-right"></dd>
-</dl>
-
-<!-- Steps row: the progress bar / step dots / video-ad / unlock button on
-     the left, and — docked right alongside them, NOT floating off the
-     whole card — the optional tutorial video panel. Stacks on narrow
-     screens. This whole row is what the tutorial video is "attached" to. -->
-<div class="mt-6 flex flex-col sm:flex-row gap-4 items-stretch">
-<div class="flex-1 min-w-0">
-<div class="mb-3">
-<div class="flex items-center justify-between text-xs mb-1.5">
-<span id="progress-label" class="text-[var(--ink-dim)]"></span>
-<span id="progress-percent" class="text-[var(--ink-dim)] font-medium"></span>
-</div>
-<div class="w-full h-1.5 rounded-full overflow-hidden" style="background:var(--line);">
-<div id="progress-bar" class="h-full rounded-full transition-all duration-500" style="width:0%; background:linear-gradient(90deg, #00F0FF, #9D4EDD);"></div>
-</div>
-</div>
-<div id="step-indicator" class="flex items-center justify-center gap-2 mb-4 flex-wrap"></div>
-
-<!-- STEP 1 of the 4-step flow: 10-second video ad gate.
-     Plays activeProduct.adVideoUrl if the product/CMS supplies one, or a
-     site-wide default video (window.DEFAULT_AD_VIDEO_URL, set in script.js).
-     If no video source can load, it falls back to a 10-second AdSense
-     display-ad "watch" step so the gate still always lasts 10s. -->
-<div id="ad-video-step" class="hidden mb-4">
-<div class="relative rounded-lg overflow-hidden" style="aspect-ratio:16/9;background:#000;">
-<video id="ad-video" muted playsinline autoplay class="w-full h-full object-cover"></video>
-<div id="ad-video-fallback" class="hidden absolute inset-0 items-center justify-center overflow-hidden" style="background:var(--bg-raised);">
-<ins class="adsbygoogle" style="display:block;width:100%;height:100%;" data-ad-client="ca-pub-2827589221947089" data-ad-slot="0000000000" data-ad-format="auto" data-full-width-responsive="true"></ins>
-</div>
-<div class="absolute bottom-2 right-2 text-[11px] px-2 py-1 rounded-full font-medium" style="background:rgba(0,0,0,0.65);color:#fff;">
-<span id="ad-video-countdown">10</span>s
-</div>
-</div>
-<p id="ad-video-caption" class="text-xs text-[var(--ink-dim)] text-center mt-2"></p>
-</div>
-
-<button id="unlock-btn" class="btn-primary w-full py-3 rounded-lg text-sm flex items-center justify-center gap-2" disabled>
-<svg id="unlock-ring" width="18" height="18" viewBox="0 0 36 36" class="shrink-0">
-<circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(10,10,10,0.25)" stroke-width="3"/>
-<circle id="unlock-ring-progress" class="ring-progress" cx="18" cy="18" r="15.5" fill="none" stroke="#0A0A0A" stroke-width="3" stroke-dasharray="97.4" stroke-dashoffset="0" stroke-linecap="round" transform="rotate(-90 18 18)"/>
-</svg>
-<span id="unlock-label">Unlocking in 10s…</span>
-</button>
-<a id="drive-btn" target="_blank" rel="noopener"
-class="hidden btn-primary w-full py-3 rounded-lg text-sm items-center justify-center gap-2 mt-3">
-<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14m0 0-6-6m6 6 6-6M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-<span data-i18n="modal_drive_btn">Download final file</span>
-</a>
-<p id="modal-hint" class="text-xs text-[var(--ink-dim)] text-center mt-3">A sponsor page opens in a new tab to keep this library free.</p>
-</div>
-
-<!-- Optional side "how to download" tutorial video panel.
-     Hidden entirely (display:none) unless the active product has a
-     tutorialVideoUrl set via the admin — see setupTutorialPanel() in
-     script.js. Starts as a silent looping preview with an instructional
-     overlay; clicking it unmutes and plays with sound. Docked right next
-     to the steps block above so it reads as one unit, not a separate
-     floating card. -->
-<div id="tutorial-panel" class="hidden tutorial-panel w-full sm:w-36 rounded-xl overflow-hidden shrink-0">
-<div id="tutorial-video-wrap" class="relative h-full" style="aspect-ratio:9/16; background:#000;">
-<video id="tutorial-video" playsinline loop muted class="w-full h-full object-cover"></video>
-<button id="tutorial-video-toggle" type="button" class="tutorial-play-overlay" aria-label="Play tutorial with sound">
-<span class="tutorial-play-icon" aria-hidden="true">►</span>
-<span class="tutorial-caption" data-i18n="tutorial_video_caption">Stuck? Tap to watch how to download — with sound</span>
-</button>
-</div>
-</div>
-</div>
-
-</div>
-</div>
-
-<!-- 3D VIEWER MODAL -->
-<div id="viewer-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
-<div class="overlay-panel relative w-full max-w-2xl rounded-xl p-5 md:p-6">
-<button id="viewer-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-</button>
-<h3 id="viewer-title" class="font-display text-lg font-semibold pr-6 mb-3" data-i18n="viewer_title">3D preview</h3>
-<div id="viewer-stage">
-<model-viewer id="model-viewer-el" camera-controls auto-rotate rotation-per-second="18deg"
-shadow-intensity="0.9" exposure="0.95" environment-image="neutral" interaction-prompt="none">
-<div slot="progress-bar"></div>
-</model-viewer>
-<video id="video-viewer-el" class="hidden" controls autoplay loop playsinline style="width:100%;height:100%;object-fit:contain;background:#0A0A0A;"></video>
-</div>
-<p id="viewer-hint" class="text-xs text-[var(--ink-dim)] text-center mt-3" data-i18n="viewer_hint">Drag to rotate · scroll to zoom. This is a lightweight preview — the downloaded .blend file may include extra materials, rigs and lighting.</p>
-</div>
-</div>
-
-<!-- REPORT BROKEN LINK MODAL -->
-<div id="report-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
-<div class="overlay-panel relative w-full max-w-sm rounded-xl p-6">
-<button id="report-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-</button>
-<h3 class="font-display text-lg font-semibold pr-6 mb-1" data-i18n="report_title">Report a broken link</h3>
-<p id="report-asset-name" class="text-sm text-[var(--ink-dim)] mb-4"></p>
-<form id="report-form" class="space-y-4">
-<div class="form-field">
-<label for="report-reason" data-i18n="report_reason_label">What's wrong?</label>
-<select id="report-reason">
-<option value="dead-link" data-i18n="report_reason_dead">Download link doesn't work</option>
-<option value="wrong-file" data-i18n="report_reason_wrong">File doesn't match the description</option>
-<option value="corrupted" data-i18n="report_reason_corrupt">File is corrupted / won't open</option>
-<option value="other" data-i18n="report_reason_other">Something else</option>
-</select>
-</div>
-<div class="form-field">
-<label for="report-note" data-i18n="report_note_label">Details (optional)</label>
-<textarea id="report-note" rows="3" data-i18n-placeholder="report_note_placeholder" placeholder="Anything that helps us fix it faster…"></textarea>
-</div>
-<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="report_submit">Send report</button>
-</form>
-</div>
-</div>
-
-<!-- REQUEST A MODEL MODAL -->
-<div id="request-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
-<div class="overlay-panel relative w-full max-w-md rounded-xl p-6">
-<button id="request-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-</button>
-<h3 class="font-display text-lg font-semibold pr-6 mb-1" data-i18n="request_title">Request a model</h3>
-<p class="text-sm text-[var(--ink-dim)] mb-5" data-i18n="request_sub">Tell us what you need — if it fits the library, we'll add it to the queue.</p>
-<form id="request-form" class="space-y-4">
-<div class="form-field">
-<label for="request-desc" data-i18n="request_desc_label">What model do you need?</label>
-<textarea id="request-desc" rows="3" required data-i18n-placeholder="request_desc_placeholder" placeholder="e.g. a low-poly medieval blacksmith shop with modular walls"></textarea>
-</div>
-<div class="grid grid-cols-2 gap-3">
-<div class="form-field">
-<label for="request-category" data-i18n="request_category_label">Category</label>
-<select id="request-category">
-<option value="Characters" data-i18n="chip_characters">Characters</option>
-<option value="Environments" data-i18n="chip_environments">Environments</option>
-<option value="Shaders" data-i18n="chip_shaders">Shaders</option>
-<option value="Animations" data-i18n="chip_animations">Animations</option>
-<option value="Assets" data-i18n="chip_assets">Assets</option>
-</select>
-</div>
-<div class="form-field">
-<label for="request-contact" data-i18n="request_contact_label">Email (optional)</label>
-<input id="request-contact" type="email" data-i18n-placeholder="request_contact_placeholder" placeholder="you@example.com">
-</div>
-</div>
-<div class="form-field">
-<label for="request-ref" data-i18n="request_ref_label">Reference link (optional)</label>
-<input id="request-ref" type="text" data-i18n-placeholder="request_ref_placeholder" placeholder="Artstation / Pinterest / image URL…">
-</div>
-<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="request_submit">Send request</button>
-</form>
-</div>
-</div>
-
-
-<!-- COMMENTS MODAL -->
-<div id="comments-modal" class="overlay-modal fixed inset-0 z-50 hidden items-center justify-center p-4">
-<div class="overlay-panel relative w-full max-w-md rounded-xl p-6" style="max-height:88vh;overflow-y:auto;">
-<button id="comments-close" aria-label="Close" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
-<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
-</button>
-<h3 class="font-display text-lg font-semibold pr-6 mb-1" data-i18n="comments_title">Comments</h3>
-<p id="comments-asset-name" class="text-sm text-[var(--ink-dim)] mb-3"></p>
-<div id="comment-avg-wrap" class="mb-3" style="display:none;">
-  <span class="comment-avg"><span class="avg-stars" id="comment-avg-stars"></span><span id="comment-avg-text"></span></span>
-</div>
-<div id="comment-list"></div>
-<hr style="border-color:var(--line);margin:14px 0;">
-<form id="comment-form" class="space-y-4">
-<div class="form-field">
-<label for="comment-name" data-i18n="comment_name_label">Your name</label>
-<input id="comment-name" type="text" maxlength="40" required data-i18n-placeholder="comment_name_placeholder" placeholder="Anonymous">
-</div>
-<div class="form-field">
-<label data-i18n="comment_rating_label">Your rating</label>
-<div class="star-rating" id="star-rating">
-<input type="radio" id="star5" name="rating" value="5"><label for="star5">&#9733;</label>
-<input type="radio" id="star4" name="rating" value="4"><label for="star4">&#9733;</label>
-<input type="radio" id="star3" name="rating" value="3"><label for="star3">&#9733;</label>
-<input type="radio" id="star2" name="rating" value="2"><label for="star2">&#9733;</label>
-<input type="radio" id="star1" name="rating" value="1"><label for="star1">&#9733;</label>
-</div>
-</div>
-<div class="form-field">
-<label for="comment-text" data-i18n="comment_text_label">Your comment</label>
-<textarea id="comment-text" rows="3" maxlength="600" required data-i18n-placeholder="comment_text_placeholder" placeholder="Share your thoughts about this asset..."></textarea>
-</div>
-<div class="form-field">
-<label data-i18n="comment_captcha_label">Anti-bot check</label>
-<div id="comment-recaptcha"></div>
-</div>
-<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="comment_submit">Post comment</button>
-</form>
-</div>
-</div>
-
-<!-- TOAST -->
-<div id="toast" role="status" aria-live="polite"></div>
-
-<script>
-(function(){
-var canvas = document.getElementById('sand-canvas');
-var ctx = canvas.getContext('2d');
-var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-var W, H, DPR;
-var grains = [];
-var GRAIN_COUNT = 160;
-var running = true;
-var rafId = null;
-var lastFrame = 0;
-var FRAME_INTERVAL = 1000 / 30; // cap at ~30fps, plenty smooth for slow drifting grains
-
-function resize(){
-DPR = Math.min(window.devicePixelRatio || 1, 1.5);
-W = window.innerWidth;
-H = window.innerHeight;
-canvas.width = W * DPR;
-canvas.height = H * DPR;
-canvas.style.width = W + 'px';
-canvas.style.height = H + 'px';
-ctx.setTransform(DPR,0,0,DPR,0,0);
-}
-
-function makeGrain(){
-return {
-x: Math.random() * W,
-y: Math.random() * H,
-r: Math.random() * 1.3 + 0.35,
-speedX: (Math.random() - 0.5) * 0.9,
-speedY: Math.random() * 0.7 + 0.25,
-drift: Math.random() * Math.PI * 2,
-driftSpeed: (Math.random() * 0.03) + 0.01,
-alpha: Math.random() * 0.6 + 0.2
-};
-}
-
-function init(){
-resize();
-grains = [];
-for(var i=0;i<GRAIN_COUNT;i++){ grains.push(makeGrain()); }
-if(reduceMotion){ drawStatic(); } else { rafId = requestAnimationFrame(tick); }
-}
-
-function drawStatic(){
-ctx.clearRect(0,0,W,H);
-ctx.fillStyle = '#FFFFFF';
-grains.forEach(function(g){
-ctx.globalAlpha = g.alpha * 0.6;
-ctx.beginPath();
-ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
-ctx.fill();
-});
-ctx.globalAlpha = 1;
-}
-
-var windTime = 0;
-
-function tick(ts){
-rafId = requestAnimationFrame(tick);
-if(!running) return;
-if(ts - lastFrame < FRAME_INTERVAL) return;
-lastFrame = ts;
-
-windTime += 0.02;
-var wind = Math.sin(windTime) * 1.7 + Math.sin(windTime * 2.7 + 1.3) * 0.8;
-
-ctx.clearRect(0,0,W,H);
-ctx.fillStyle = '#FFFFFF';
-grains.forEach(function(g){
-g.drift += g.driftSpeed;
-var windPull = wind * (2.2 - g.r);
-g.x += g.speedX + windPull + Math.sin(g.drift) * 0.28;
-g.y += g.speedY;
-if(g.y > H + 4){ g.y = -4; g.x = Math.random() * W; }
-if(g.x > W + 4) g.x = -4;
-if(g.x < -4) g.x = W + 4;
-ctx.globalAlpha = g.alpha;
-ctx.beginPath();
-ctx.arc(g.x, g.y, g.r, 0, Math.PI*2);
-ctx.fill();
-});
-ctx.globalAlpha = 1;
-}
-
-// pause the ambient animation while the download modal is open or the tab
-// is hidden, so it never competes with the unlock/download flow
-var modalEl = document.getElementById('download-modal');
-function syncRunning(){
-var modalOpen = modalEl && !modalEl.classList.contains('hidden');
-running = !modalOpen && document.visibilityState === 'visible';
-}
-if(modalEl){
-new MutationObserver(syncRunning).observe(modalEl, { attributes:true, attributeFilter:['class'] });
-}
-document.addEventListener('visibilitychange', syncRunning);
-
-window.addEventListener('resize', function(){
-resize();
-});
-
-init();
-})();
-</script>
-<script src="i18n.js"></script>
-<script src="script.js"></script>
-
-</body>
-</html>
+<li>يقوم الموقع بجمع بعض البيانات الخاصة بك، مثل نوع المتصفح، نظام التشغيل، رقم I
