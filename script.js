@@ -383,6 +383,30 @@ async function loadProducts() {
   render();
 }
 
+// Site-wide ad-gate + Panda key-system config, edited from /admin (Decap
+// CMS -> data/settings.json). Falls back to a safe default (the old 3x10s
+// sponsor-link behaviour, no key system) if the file is missing/broken, so
+// a bad edit in the CMS never breaks the download flow entirely.
+window.SITE_SETTINGS = window.SITE_SETTINGS || null;
+async function loadSettings() {
+  const fallback = {
+    gate: { steps: [] },
+    keySystem: { service: "", whitelistCheckUrl: "", callbackBaseUrl: "", getKeyUrl: "", returnParamName: "key" },
+  };
+  try {
+    const res = await fetch("data/settings.json", { cache: "no-store" });
+    if (!res.ok) throw new Error("Failed to load settings.json");
+    const json = await res.json();
+    window.SITE_SETTINGS = {
+      gate: { steps: (json.gate && Array.isArray(json.gate.steps)) ? json.gate.steps : [] },
+      keySystem: Object.assign({}, fallback.keySystem, json.keySystem || {}),
+    };
+  } catch (err) {
+    console.error(err);
+    window.SITE_SETTINGS = fallback;
+  }
+}
+
 function renderSkeletons(n) {
   const skeletonHtml = Array.from({ length: n }).map(() => `
     <div class="card rounded-xl overflow-hidden">
