@@ -11,6 +11,60 @@ media_folder: "assets/uploads"
 public_folder: "assets/uploads"
 
 collections:
+  - name: "settings"
+    label: "Ad Gate & Key System"
+    files:
+      - name: "settings"
+        label: "Ad Gate & Key System Settings"
+        file: "data/settings.json"
+        format: "json"
+        fields:
+          - label: "Download Gate — Ad Slots"
+            name: "gate"
+            widget: "object"
+            fields:
+              - label: "Ad Slots (shown in order before every download, replacing the old 4-step flow)"
+                name: "steps"
+                widget: "list"
+                min: 1
+                max: 4
+                summary: "{{fields.label}} — {{fields.provider}} ({{fields.seconds}}s)"
+                fields:
+                  - { label: "Internal ID", name: "id", widget: "string", hint: "Unique, no spaces, e.g. slot1" }
+                  - { label: "Label shown to visitors", name: "label", widget: "string", default: "Ad" }
+                  - label: "Ad Network"
+                    name: "provider"
+                    widget: "select"
+                    options: ["hilltopads", "richads", "custom"]
+                    default: "custom"
+                  - label: "Slot Type"
+                    name: "type"
+                    widget: "select"
+                    options:
+                      - { label: "In-page video (VAST tag — tries to play inline, falls back to a new tab if the ad network blocks it)", value: "vast-video" }
+                      - { label: "New-tab link + timed wait (for Direct Link / popunder style ad codes, e.g. HilltopAds Direct Link)", value: "link-dwell" }
+                    default: "link-dwell"
+                    hint: "Only a real VAST/video ad tag can truly autoplay inline. A HilltopAds \"Direct Link\" is a redirect URL, not a video file — use link-dwell for those."
+                  - label: "Ad Code / URL"
+                    name: "url"
+                    widget: "string"
+                    hint: "Paste the ad network's tag URL here. For RichAds-style RTB pre-roll endpoints, do not include ip=/ua= macros — the site fills those in automatically."
+                  - label: "Required watch / wait time (seconds)"
+                    name: "seconds"
+                    widget: "select"
+                    options: [30, 60]
+                    default: 30
+                    hint: "The visitor must watch/wait this long. If they pause or close the ad before this finishes, they are sent back to redo the previous slot."
+          - label: "Panda Key System (oelonohub)"
+            name: "keySystem"
+            widget: "object"
+            fields:
+              - { label: "Service name", name: "service", widget: "string", default: "oelonohub" }
+              - { label: "Whitelist check endpoint", name: "whitelistCheckUrl", widget: "string", default: "https://api.pandauth.com/api/v1/public/whitelist/check", hint: "Called as ?service=...&key=... to verify a key." }
+              - { label: "Ads callback base URL", name: "callbackBaseUrl", widget: "string", default: "https://api.pandauth.com/api/v1/api/public/ads/callback/oelonohub", hint: "Base of the Panda callback. Panda appends its own one-time token (t=...) — never hard-code a specific token here, it only works once." }
+              - { label: "\"Get Key\" offer / locker URL", name: "getKeyUrl", widget: "string", required: false, hint: "Where the \"Get a key\" button sends visitors (your ad-locker/offer wall page that eventually redirects through the Panda callback above). Leave empty to hide the button." }
+              - { label: "Return query param name", name: "returnParamName", widget: "string", default: "key", hint: "When Panda sends the visitor back to this site with the new key, what query param it's in, e.g. https://oelono.github.io/?key=XXXX." }
+
   - name: "products"
     label: "Products"
     files:
