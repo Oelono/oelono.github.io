@@ -888,4 +888,256 @@ class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)]
 <li>للتعليق في الموقع يفضل ذكر اسمك الشخصي. يمكنك استخدام اسم مستعار، لكن لا يسمح أبدًا بانتحال اسم أي شخص أو هيئة.</li>
 <li>يفضل ذكر بريدك الإلكتروني الحقيقي عند التعليق. الموقع يلتزم بعدم استخدام هذا البريد في أي نشاط سوى المراسلات الشخصية، ويلتزم بألا يسلم بريدك إلى أي طرف ثالث دون إذن مسبق منك.</li>
 <li>يجب عليك ألا تعدل أو تكيف الموقع ولا تستخدمه بطرق غير مشروعة أو بأي طرق أخرى يمكن أن تضر أو تعطل الموقع.</li>
-<li>يقوم الموقع بجمع بعض البيانات الخاصة بك، مثل نوع المتصفح، نظام التشغيل، رقم I
+<li>يقوم الموقع بجمع بعض البيانات الخاصة بك، مثل نوع المتصفح، نظام التشغيل، عنوان IP، والصفحات التي تمت زيارتها، وذلك لأغراض تحليلية بحتة تهدف إلى تحسين جودة الخدمة والمحتوى المقدَّم لك.</li>
+<li>يحتفظ الموقع بحقه في تعديل هذه الشروط أو تحديثها في أي وقت ودون إشعار مسبق، واستمرارك في استخدام الموقع بعد التعديل يُعد موافقة منك على الشروط الجديدة.</li>
+</ul>
+<p class="mt-6 pt-5 border-t border-[var(--line)] text-xs">آخر تحديث لهذه الشروط: 2022-12-30</p>
+</div>
+</div>
+</div>
+
+<!-- =========================================================
+     DOWNLOAD MODAL + 4-STEP IN-PAGE UNLOCK GATE
+     ========================================================= -->
+<div id="download-modal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4">
+<div class="w-full max-w-4xl flex flex-col md:flex-row gap-4 items-start justify-center">
+
+<div class="modal-panel relative w-full md:max-w-lg rounded-2xl p-6 md:p-7 max-h-[88vh] overflow-y-auto">
+<button id="modal-close" type="button" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+
+<span id="modal-badge" class="badge px-2 py-1 rounded"></span>
+<h3 id="modal-title" class="font-display text-xl md:text-2xl font-bold mt-3 pr-6 leading-snug"></h3>
+<p id="modal-desc" class="text-sm text-[var(--ink-dim)] mt-2 leading-relaxed"></p>
+
+<dl class="grid grid-cols-3 gap-3 mt-5 text-center">
+<div>
+<dt class="text-[11px] text-[var(--ink-dim)]" data-i18n="modal_filesize_label">File size</dt>
+<dd id="modal-filesize" class="text-sm font-semibold mt-1">&mdash;</dd>
+</div>
+<div class="stat-divider border-l border-[var(--line)]">
+<dt class="text-[11px] text-[var(--ink-dim)]" data-i18n="modal_engine_label">Render engine</dt>
+<dd id="modal-engine" class="text-sm font-semibold mt-1">&mdash;</dd>
+</div>
+<div class="stat-divider border-l border-[var(--line)]">
+<dt class="text-[11px] text-[var(--ink-dim)]" data-i18n="modal_license_label">License</dt>
+<dd id="modal-license" class="text-sm font-semibold mt-1">&mdash;</dd>
+</div>
+</dl>
+
+<div id="step-indicator" class="flex flex-wrap items-center gap-1.5 mt-5"></div>
+
+<div class="mt-4">
+<div class="flex items-center justify-between text-[11px] text-[var(--ink-dim)] mb-1.5">
+<span id="progress-label"></span>
+<span id="progress-percent">0%</span>
+</div>
+<div class="h-1.5 w-full rounded-full overflow-hidden" style="background:var(--line);">
+<div id="progress-bar" class="h-full rounded-full" style="width:0%; background:linear-gradient(90deg,#00F0FF,#9D4EDD); transition:width .25s linear;"></div>
+</div>
+</div>
+
+<div id="gate-stage" class="mt-5 hidden">
+<div class="flex items-center justify-between gap-3 mb-2">
+<span id="gate-step-label" class="text-xs font-semibold"></span>
+<span id="gate-countdown-badge" class="badge px-2 py-1 rounded"><span id="gate-countdown">0</span>s</span>
+</div>
+<div class="relative w-full rounded-xl overflow-hidden border border-[var(--line)]" style="aspect-ratio:16/9; background:#000;">
+<video id="gate-video" class="w-full h-full object-contain" playsinline webkit-playsinline preload="auto"></video>
+<div id="gate-video-loading" class="gate-overlay hidden absolute inset-0 flex-col items-center justify-center gap-3" style="background:rgba(0,0,0,0.78);">
+<div class="gate-spinner"></div>
+<span id="gate-loading-text" class="text-xs text-[var(--ink-dim)]" data-i18n="ad_playing_label">Advertisement playing…</span>
+</div>
+<div id="gate-video-fallback" class="gate-overlay hidden absolute inset-0 flex-col items-center justify-center gap-3 text-center px-5" style="background:rgba(0,0,0,0.88);">
+<div class="gate-fallback-ring"><span id="gate-fallback-countdown">0</span></div>
+<span id="gate-fallback-text" class="text-xs text-[var(--ink-dim)] leading-relaxed"></span>
+</div>
+<button id="gate-play-chip" type="button" class="hidden absolute inset-0 w-full h-full items-center justify-center" style="background:rgba(0,0,0,0.45);">
+<span class="tutorial-play-icon">&#9654;</span>
+</button>
+</div>
+<p id="gate-caption" class="text-xs text-[var(--ink-dim)] mt-2.5 leading-relaxed"></p>
+</div>
+
+<div class="gate-actions mt-4">
+<button id="gate-action-btn" type="button" disabled class="btn-primary w-full py-3 rounded-lg text-sm inline-flex items-center justify-center gap-2 hidden">
+<svg id="gate-ring" width="20" height="20" viewBox="0 0 36 36" class="shrink-0">
+<circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(10,10,10,0.22)" stroke-width="3"></circle>
+<circle id="gate-ring-progress" class="ring-progress" cx="18" cy="18" r="15.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" transform="rotate(-90 18 18)"></circle>
+</svg>
+<svg id="gate-action-icon" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+<span id="gate-action-label"></span>
+</button>
+<a id="gate-download-link" href="#" target="_blank" rel="noopener" class="btn-primary w-full py-3 rounded-lg text-sm hidden items-center justify-center gap-2">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+<span data-i18n="modal_drive_btn">Download final file</span>
+</a>
+</div>
+
+<p id="modal-hint" class="text-[11px] text-[var(--ink-dim)] mt-3 leading-relaxed" data-i18n="modal_hint_default">Watch a short video to unlock your file — everything happens right here on this page.</p>
+</div>
+
+<div id="tutorial-panel" class="tutorial-panel relative w-full md:w-64 rounded-2xl overflow-hidden hidden">
+<video id="tutorial-video" class="w-full h-full object-cover" playsinline muted loop preload="metadata"></video>
+<button id="tutorial-video-toggle" type="button" class="tutorial-play-overlay">
+<span class="tutorial-play-icon">&#9654;</span>
+<span class="tutorial-caption" data-i18n="tutorial_video_caption">Stuck? Tap to watch how to download — with sound</span>
+</button>
+</div>
+
+</div>
+</div>
+
+<!-- =========================================================
+     3D / VIDEO PREVIEW MODAL
+     ========================================================= -->
+<div id="viewer-modal" class="overlay-modal fixed inset-0 z-[60] hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-3xl rounded-2xl p-5 md:p-6">
+<button id="viewer-close" type="button" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 id="viewer-title" class="font-display text-lg md:text-xl font-bold pr-6 mb-3"></h3>
+<div id="viewer-stage">
+<model-viewer id="model-viewer-el" camera-controls auto-rotate rotation-per-second="18deg" shadow-intensity="0.9" exposure="1" interaction-prompt="none" alt="3D preview"></model-viewer>
+<video id="video-viewer-el" class="hidden" style="width:100%; height:100%; object-fit:contain; background:#000;" controls playsinline></video>
+</div>
+<p id="viewer-hint" class="text-xs text-[var(--ink-dim)] mt-3 leading-relaxed"></p>
+</div>
+</div>
+
+<!-- =========================================================
+     REPORT BROKEN LINK MODAL
+     ========================================================= -->
+<div id="report-modal" class="overlay-modal fixed inset-0 z-[60] hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-md rounded-2xl p-6">
+<button id="report-close" type="button" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-lg font-bold pr-6" data-i18n="report_title">Report a broken link</h3>
+<p id="report-asset-name" class="text-sm text-[var(--ink-dim)] mt-1 mb-5"></p>
+<form id="report-form" class="space-y-4">
+<div class="form-field">
+<label for="report-reason" data-i18n="report_reason_label">What's wrong?</label>
+<select id="report-reason">
+<option value="dead" data-i18n="report_reason_dead">Download link doesn't work</option>
+<option value="wrong" data-i18n="report_reason_wrong">File doesn't match the description</option>
+<option value="corrupt" data-i18n="report_reason_corrupt">File is corrupted / won't open</option>
+<option value="other" data-i18n="report_reason_other">Something else</option>
+</select>
+</div>
+<div class="form-field">
+<label for="report-note" data-i18n="report_note_label">Details (optional)</label>
+<textarea id="report-note" rows="3" maxlength="600" data-i18n-placeholder="report_note_placeholder" placeholder="Anything that helps us fix it faster…"></textarea>
+</div>
+<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="report_submit">Send report</button>
+</form>
+</div>
+</div>
+
+<!-- =========================================================
+     REQUEST A MODEL MODAL
+     ========================================================= -->
+<div id="request-modal" class="overlay-modal fixed inset-0 z-[60] hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-md rounded-2xl p-6 max-h-[88vh] overflow-y-auto">
+<button id="request-close" type="button" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<h3 class="font-display text-lg font-bold pr-6" data-i18n="request_title">Request a model</h3>
+<p class="text-sm text-[var(--ink-dim)] mt-1 mb-5" data-i18n="request_sub">Tell us what you need — if it fits the library, we'll add it to the queue.</p>
+<form id="request-form" class="space-y-4">
+<div class="form-field">
+<label for="request-desc" data-i18n="request_desc_label">What model do you need?</label>
+<textarea id="request-desc" rows="3" maxlength="800" required data-i18n-placeholder="request_desc_placeholder" placeholder="e.g. a low-poly medieval blacksmith shop with modular walls"></textarea>
+</div>
+<div class="form-field">
+<label for="request-category" data-i18n="request_category_label">Category</label>
+<select id="request-category">
+<option value="Characters" data-i18n="chip_characters">Characters</option>
+<option value="Environments" data-i18n="chip_environments">Environments</option>
+<option value="Shaders" data-i18n="chip_shaders">Shaders</option>
+<option value="Animations" data-i18n="chip_animations">Animations</option>
+<option value="Assets" data-i18n="chip_assets">Assets</option>
+</select>
+</div>
+<div class="form-field">
+<label for="request-contact" data-i18n="request_contact_label">Email (optional)</label>
+<input id="request-contact" type="email" maxlength="120" data-i18n-placeholder="request_contact_placeholder" placeholder="you@example.com">
+</div>
+<div class="form-field">
+<label for="request-ref" data-i18n="request_ref_label">Reference link (optional)</label>
+<input id="request-ref" type="text" maxlength="300" data-i18n-placeholder="request_ref_placeholder" placeholder="Artstation / Pinterest / image URL…">
+</div>
+<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="request_submit">Send request</button>
+</form>
+</div>
+</div>
+
+<!-- =========================================================
+     COMMENTS MODAL (per asset)
+     ========================================================= -->
+<div id="comments-modal" class="overlay-modal fixed inset-0 z-[60] hidden items-center justify-center p-4">
+<div class="overlay-panel relative w-full max-w-lg rounded-2xl p-6 max-h-[88vh] overflow-y-auto">
+<button id="comments-close" type="button" class="absolute top-4 right-4 text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+</button>
+<div class="flex items-center justify-between gap-3 pr-6">
+<h3 class="font-display text-lg font-bold" data-i18n="comments_title">Comments</h3>
+<span class="comment-avg" id="comment-avg-wrap" style="display:none;">
+<span class="avg-stars" id="comment-avg-stars"></span>
+<span id="comment-avg-text"></span>
+</span>
+</div>
+<p id="comments-asset-name" class="text-sm text-[var(--ink-dim)] mt-1"></p>
+
+<div id="comment-list"></div>
+
+<form id="comment-form" class="space-y-4 mt-5 pt-5 border-t border-[var(--line)]">
+<div class="form-field">
+<label for="comment-name" data-i18n="comment_name_label">Your name</label>
+<input id="comment-name" type="text" maxlength="40" required data-i18n-placeholder="comment_name_placeholder" placeholder="Anonymous">
+</div>
+<div class="form-field">
+<label data-i18n="comment_rating_label">Your rating</label>
+<div class="star-rating">
+<input type="radio" id="cmt-star5" name="rating" value="5"><label for="cmt-star5">&#9733;</label>
+<input type="radio" id="cmt-star4" name="rating" value="4"><label for="cmt-star4">&#9733;</label>
+<input type="radio" id="cmt-star3" name="rating" value="3"><label for="cmt-star3">&#9733;</label>
+<input type="radio" id="cmt-star2" name="rating" value="2"><label for="cmt-star2">&#9733;</label>
+<input type="radio" id="cmt-star1" name="rating" value="1"><label for="cmt-star1">&#9733;</label>
+</div>
+</div>
+<div class="form-field">
+<label for="comment-text" data-i18n="comment_text_label">Your comment</label>
+<textarea id="comment-text" rows="3" maxlength="600" required data-i18n-placeholder="comment_text_placeholder" placeholder="Share your thoughts about this asset..."></textarea>
+</div>
+<div class="form-field">
+<label data-i18n="comment_captcha_label">Anti-bot check</label>
+<div id="comment-recaptcha"></div>
+</div>
+<button type="submit" class="btn-primary w-full py-2.5 rounded-lg text-sm" data-i18n="comment_submit">Post comment</button>
+</form>
+</div>
+</div>
+
+<!-- =========================================================
+     LEAVE-SITE CONFIRMATION
+     ========================================================= -->
+<div id="leave-site-modal" class="glass-overlay fixed inset-0 z-[70] hidden items-center justify-center p-4">
+<div class="glass-panel relative w-full max-w-sm rounded-2xl p-6 text-center">
+<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="mx-auto mb-3 text-[var(--ink-dim)]"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg>
+<h3 class="font-display text-lg font-bold mb-1.5">You're leaving the site</h3>
+<p class="text-sm text-[var(--ink-dim)] mb-5 leading-relaxed">This link opens an external page. Do you want to continue?</p>
+<div class="flex items-center gap-3">
+<button id="leave-site-cancel" type="button" class="flex-1 py-2.5 rounded-lg text-sm border border-[var(--line)] text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors">Cancel</button>
+<a id="leave-site-confirm" href="#" class="btn-primary flex-1 py-2.5 rounded-lg text-sm inline-flex items-center justify-center">Continue</a>
+</div>
+</div>
+</div>
+
+<div id="toast"></div>
+
+<script src="i18n.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
