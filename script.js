@@ -1043,15 +1043,10 @@ let pandaVerifying  = false;  // a request is in flight
 let pandaAbort      = null;   // AbortController for that request
 let pandaHwid       = null;   // cached browser fingerprint
 
-/* ---------- HWID ----------------------------------------------------------
-   A browser has no real hardware ID, so we build a stable per-device
-   fingerprint: a random seed persisted in localStorage, mixed with a few
-   device traits and hashed with SHA-256. Panda accepts any opaque string
-   as hwid (their docs list "IP / Hardware ID / Fingerprint / etc").
-
-   The SAME hwid is appended to the GetKey link and sent at validation,
-   so a key minted on one device will not validate on another.
-   Note: clearing site data changes the hwid -> the user needs a new key.
+/* ---------- HWID (disabled) -------------------------------------------------
+   Device-locking is turned OFF: every browser reports the same fixed
+   "hwid" value, so a single key works for anyone who has it, on any
+   device/browser, instead of being tied to the device that requested it.
    -------------------------------------------------------------------------- */
 async function sha256Hex(text) {
   if (crypto && crypto.subtle && crypto.subtle.digest) {
@@ -1068,24 +1063,8 @@ async function sha256Hex(text) {
 }
 
 async function getPandaHwid() {
-  if (pandaHwid) return pandaHwid;
-  let seed = null;
-  try { seed = localStorage.getItem(PANDA_HWID_STORE); } catch (e) { /* no-op */ }
-  if (!seed) {
-    seed = (crypto && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : String(Date.now()) + Math.random().toString(36).slice(2);
-    try { localStorage.setItem(PANDA_HWID_STORE, seed); } catch (e) { /* no-op */ }
-  }
-  const traits = [
-    seed,
-    navigator.userAgent || "",
-    navigator.language || "",
-    (navigator.hardwareConcurrency || 0),
-    (screen.width + "x" + screen.height + "x" + screen.colorDepth),
-    new Date().getTimezoneOffset(),
-  ].join("|");
-  pandaHwid = await sha256Hex(traits);
+  // Fixed value for every visitor -> keys are shareable, not device-bound.
+  pandaHwid = "shared";
   return pandaHwid;
 }
 
@@ -1110,7 +1089,7 @@ const PANDA_STRINGS = {
     empty: "Please enter your key first.",
     network: "Could not reach the verification server. Check your connection and try again.",
     hwid: "This key belongs to another device or browser. Get a new key from this browser.",
-    hint: "Keys are free, tied to this browser, and refresh every 24 hours.",
+    hint: "Keys are free and refresh every 24 hours.",
   },
   ar: {
     title: "الخطوة 1 — أدخل مفتاح الدخول",
@@ -1124,7 +1103,7 @@ const PANDA_STRINGS = {
     empty: "من فضلك أدخل المفتاح أولاً.",
     network: "تعذّر الوصول إلى خادم التحقق. تأكد من اتصالك وحاول مرة أخرى.",
     hwid: "هذا المفتاح يخص جهازاً أو متصفحاً آخر. احصل على مفتاح جديد من هذا المتصفح.",
-    hint: "المفاتيح مجانية ومرتبطة بهذا المتصفح ويتم تحديثها كل 24 ساعة.",
+    hint: "المفاتيح مجانية ويتم تحديثها كل 24 ساعة.",
   },
   ru: {
     title: "Шаг 1 — Введите ключ доступа",
@@ -1138,7 +1117,7 @@ const PANDA_STRINGS = {
     empty: "Сначала введите ключ.",
     network: "Не удалось связаться с сервером проверки. Проверьте соединение.",
     hwid: "Ключ принадлежит другому устройству или браузеру. Получите новый ключ здесь.",
-    hint: "Ключи бесплатны, привязаны к этому браузеру и обновляются каждые 24 часа.",
+    hint: "Ключи бесплатны и обновляются каждые 24 часа.",
   },
 };
 
@@ -1169,11 +1148,7 @@ function readPandaUnlock() {
       localStorage.removeItem(PANDA_STORE_KEY);
       return null;
     }
-    // unlock is bound to the device fingerprint it was granted to
-    if (pandaHwid && data.hwid && data.hwid !== pandaHwid) {
-      localStorage.removeItem(PANDA_STORE_KEY);
-      return null;
-    }
+    // Device-lock disabled: unlocks are no longer tied to a fingerprint.
     return data;
   } catch (e) {
     return null; // private mode / corrupted value — just re-ask for the key
@@ -1293,12 +1268,6 @@ function startKeyStage() {
   if (gateKeyDesc)  gateKeyDesc.textContent  = pt("desc");
   if (gateKeyHint) {
     gateKeyHint.textContent = pt("hint");
-    // TEMP DEBUG: show this device's computed hwid so you can compare it
-    // by eye against the ?hwid=... value in the GetKey link you opened.
-    // Safe to remove once verification is confirmed working.
-    getPandaHwid().then(hwid => {
-      gateKeyHint.textContent = pt("hint") + "  [hwid: " + hwid.slice(0, 12) + "…]";
-    });
   }
   if (gateKeyLink) {
     gateKeyLink.textContent = pt("getkey");
