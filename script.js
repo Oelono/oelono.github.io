@@ -1010,24 +1010,10 @@ function openModal(product) {
 }
 
 /* ---------- gate steps ---------- */
-const tag = gateTagForStep(gateStep);
-if (tag && window.AdEngine) {
-  gateResolverAbort();
-  gateResolver = new AbortController();
-  showGateLoading(true);
-  AdEngine.playAdTag(tag, {
-    videoEl: gateVideo,
-    signal: gateResolver.signal,
-    onDirect: (url) => {                 // Direct Link: العداد يشتغل عادي
-      showGateLoading(false);
-      startFallbackStep();
-      AdEngine.attachDirectLink(gateVideoFallback, url);  // يفتح بضغطة المستخدم فقط
-    },
-    onFallback: () => { showGateLoading(false); startFallbackStep(); },
-  }).then(() => showGateLoading(false));
-} else {
-  startFallbackStep();
-}
+function startGateStep(stepNumber) {
+  gateStep = stepNumber - 1;
+  gateRunning = true;
+  gateAwaitingContinue = false;
   // UI reset for this step
   gateStage.classList.remove("hidden");
   gateDownloadLink.classList.add("hidden");
