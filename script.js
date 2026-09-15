@@ -31,6 +31,8 @@ const state = {
    API (lingva.ml) at runtime instead.
    ========================================================= */
 const strings = {
+    adblock_msg: "Looks like you're using an ad blocker. Ads keep this site free — please consider disabling it here.",
+    adblock_dismiss: "Dismiss",
     nav_library: "Library",
     nav_how: "How it works",
     nav_browse: "Browse assets",
@@ -2456,3 +2458,58 @@ window.requestModel = async function(modelName, description = '') {
     });
     alert(ok ? '✅ تم إرسال طلبك بنجاح، سنعمل على توفيره قريباً!' : '⚠️ تعذّر الإرسال لـ Discord — تأكد من إعداد الـ webhook.');
 };
+
+/* =========================================================
+   Adblock notice
+   --------------------------------------------------------
+   Shows the #adblock-banner strip (top of page) when an ad
+   blocker looks active. Two independent checks, either one
+   is enough to trigger the banner:
+     1. Bait element  — a div named/classed like a typical ad
+        slot. Most blocklists hide elements matching these
+        names via CSS, so if it ends up with no rendered size
+        shortly after being added, something is filtering it.
+     2. Script probe  — a real ad-network script URL is
+        fetched; most blockers intercept/deny the request
+        outright, so a network failure here is also a signal.
+   Dismissing the banner just hides it for the current page
+   view; it does not remember the choice across reloads.
+   ========================================================= */
+function detectAdblock() {
+  const banner = document.getElementById("adblock-banner");
+  if (!banner) return;
+
+  let shown = false;
+  const showBanner = () => {
+    if (shown) return;
+    shown = true;
+    banner.classList.remove("hidden");
+  };
+
+  // 1) Bait element check
+  const bait = document.createElement("div");
+  bait.className = "adsbox ad-banner ad-placement adsbygoogle pub_300x250 textAd";
+  bait.style.cssText = "position:absolute;left:-9999px;top:-9999px;width:1px;height:1px;";
+  document.body.appendChild(bait);
+
+  window.setTimeout(() => {
+    const blocked = bait.offsetParent === null || bait.offsetHeight === 0 || bait.clientHeight === 0;
+    bait.remove();
+    if (blocked) showBanner();
+  }, 400);
+
+  // 2) Ad-script network probe (best-effort; a thrown/failed fetch counts as blocked)
+  fetch("https://www.highrevenueformat.com/cede1f55f12c2d4341a47341cfadb4d6/invoke.js", { mode: "no-cors", cache: "no-store" })
+    .catch(() => showBanner());
+
+  const dismissBtn = document.getElementById("adblock-dismiss");
+  if (dismissBtn) {
+    dismissBtn.addEventListener("click", () => banner.classList.add("hidden"));
+  }
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", detectAdblock);
+} else {
+  detectAdblock();
+}
