@@ -1028,16 +1028,18 @@ function startGateStep(stepNumber) {
     AdEngine.playAdTag(tag, {
       videoEl: gateVideo,
       signal: gateResolver.signal,
-      onDirect: (url) => {
+      onDirect: function(url) {
         showGateLoading(false);
         startFallbackStep();
         AdEngine.attachDirectLink(gateVideoFallback, url);
       },
-      onFallback: () => {
+      onFallback: function() {
         showGateLoading(false);
         startFallbackStep();
       }
-    }).then(() => showGateLoading(false));
+    }).then(function() {
+      showGateLoading(false);
+    });
   } else {
     startFallbackStep();
   }
