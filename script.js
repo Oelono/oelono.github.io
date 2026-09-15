@@ -1028,18 +1028,73 @@ function openModal(product) {
    ========================================================= */
 
 // --- config ---------------------------------------------------------------
-// TODO: replace with your deployed worker URL (see oauth-worker/panda-worker.js)
+// TODO: replace with your deployed worker URL (see panda-worker.js)
 const PANDA_VERIFY_ENDPOINT = "https://YOUR-WORKER-SUBDOMAIN.workers.dev/verify-key";
 const PANDA_GETKEY_URL      = "https://ads.pandauth.com/getkey/oelonohub";
-const PANDA_SERVICE         = "oelonohub";
+const PANDA_SERVICE         = "oelonohub"; // = the Identifier in your dashboard
 const PANDA_UNLOCK_TTL_MS   = 24 * 60 * 60 * 1000; // key rotates every 24h
 const PANDA_STORE_KEY       = "panda_gate_unlock_v1";
+const PANDA_HWID_STORE      = "panda_hwid_seed_v1";
 const PANDA_TIMEOUT_MS      = 12000;
 
 // --- state ----------------------------------------------------------------
 let pandaUnlocked   = false;  // in-memory mirror of the stored unlock
 let pandaVerifying  = false;  // a request is in flight
 let pandaAbort      = null;   // AbortController for that request
+let pandaHwid       = null;   // cached browser fingerprint
+
+/* ---------- HWID ----------------------------------------------------------
+   A browser has no real hardware ID, so we build a stable per-device
+   fingerprint: a random seed persisted in localStorage, mixed with a few
+   device traits and hashed with SHA-256. Panda accepts any opaque string
+   as hwid (their docs list "IP / Hardware ID / Fingerprint / etc").
+
+   The SAME hwid is appended to the GetKey link and sent at validation,
+   so a key minted on one device will not validate on another.
+   Note: clearing site data changes the hwid -> the user needs a new key.
+   -------------------------------------------------------------------------- */
+async function sha256Hex(text) {
+  if (crypto && crypto.subtle && crypto.subtle.digest) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+  // fallback (non-secure context): FNV-1a, repeated to 32 chars
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return (h.toString(16) + text.length.toString(16)).padStart(32, "0").slice(0, 32);
+}
+
+async function getPandaHwid() {
+  if (pandaHwid) return pandaHwid;
+  let seed = null;
+  try { seed = localStorage.getItem(PANDA_HWID_STORE); } catch (e) { /* no-op */ }
+  if (!seed) {
+    seed = (crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : String(Date.now()) + Math.random().toString(36).slice(2);
+    try { localStorage.setItem(PANDA_HWID_STORE, seed); } catch (e) { /* no-op */ }
+  }
+  const traits = [
+    seed,
+    navigator.userAgent || "",
+    navigator.language || "",
+    (navigator.hardwareConcurrency || 0),
+    (screen.width + "x" + screen.height + "x" + screen.colorDepth),
+    new Date().getTimezoneOffset(),
+  ].join("|");
+  pandaHwid = await sha256Hex(traits);
+  return pandaHwid;
+}
+
+// GetKey link carrying this device's hwid, so the minted key binds to it
+async function pandaGetKeyUrl() {
+  const hwid = await getPandaHwid();
+  const sep = PANDA_GETKEY_URL.includes("?") ? "&" : "?";
+  return `${PANDA_GETKEY_URL}${sep}hwid=${encodeURIComponent(hwid)}`;
+}
 
 // --- tiny local i18n (independent of i18n.js so nothing else needs editing)
 const PANDA_STRINGS = {
@@ -1054,7 +1109,8 @@ const PANDA_STRINGS = {
     invalid: "This key is invalid or has expired. Get a fresh key and try again.",
     empty: "Please enter your key first.",
     network: "Could not reach the verification server. Check your connection and try again.",
-    hint: "Keys are free and refresh every 24 hours.",
+    hwid: "This key belongs to another device or browser. Get a new key from this browser.",
+    hint: "Keys are free, tied to this browser, and refresh every 24 hours.",
   },
   ar: {
     title: "الخطوة 1 — أدخل مفتاح الدخول",
@@ -1067,7 +1123,8 @@ const PANDA_STRINGS = {
     invalid: "هذا المفتاح غير صالح أو منتهي الصلاحية. احصل على مفتاح جديد وحاول مرة أخرى.",
     empty: "من فضلك أدخل المفتاح أولاً.",
     network: "تعذّر الوصول إلى خادم التحقق. تأكد من اتصالك وحاول مرة أخرى.",
-    hint: "المفاتيح مجانية ويتم تحديثها كل 24 ساعة.",
+    hwid: "هذا المفتاح يخص جهازاً أو متصفحاً آخر. احصل على مفتاح جديد من هذا المتصفح.",
+    hint: "المفاتيح مجانية ومرتبطة بهذا المتصفح ويتم تحديثها كل 24 ساعة.",
   },
   ru: {
     title: "Шаг 1 — Введите ключ доступа",
@@ -1080,7 +1137,8 @@ const PANDA_STRINGS = {
     invalid: "Ключ недействителен или истёк. Получите новый ключ и повторите попытку.",
     empty: "Сначала введите ключ.",
     network: "Не удалось связаться с сервером проверки. Проверьте соединение.",
-    hint: "Ключи бесплатны и обновляются каждые 24 часа.",
+    hwid: "Ключ принадлежит другому устройству или браузеру. Получите новый ключ здесь.",
+    hint: "Ключи бесплатны, привязаны к этому браузеру и обновляются каждые 24 часа.",
   },
 };
 
@@ -1111,15 +1169,20 @@ function readPandaUnlock() {
       localStorage.removeItem(PANDA_STORE_KEY);
       return null;
     }
+    // unlock is bound to the device fingerprint it was granted to
+    if (pandaHwid && data.hwid && data.hwid !== pandaHwid) {
+      localStorage.removeItem(PANDA_STORE_KEY);
+      return null;
+    }
     return data;
   } catch (e) {
     return null; // private mode / corrupted value — just re-ask for the key
   }
 }
 
-function writePandaUnlock(key) {
+function writePandaUnlock(key, hwid) {
   try {
-    localStorage.setItem(PANDA_STORE_KEY, JSON.stringify({ key, ts: Date.now() }));
+    localStorage.setItem(PANDA_STORE_KEY, JSON.stringify({ key, hwid, ts: Date.now() }));
   } catch (e) { /* no-op: session still works from memory */ }
 }
 
@@ -1160,6 +1223,8 @@ async function verifyPandaKey(key) {
   const clean = String(key || "").trim();
   if (!clean) return { ok: false, reason: "empty" };
 
+  const hwid = await getPandaHwid();
+
   pandaVerifyAbort();
   pandaAbort = new AbortController();
   pandaVerifying = true;
@@ -1169,21 +1234,23 @@ async function verifyPandaKey(key) {
     const res = await fetch(PANDA_VERIFY_ENDPOINT, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: clean, service: PANDA_SERVICE }),
+      body: JSON.stringify({ key: clean, service: PANDA_SERVICE, hwid }),
       cache: "no-store",
       signal: pandaAbort.signal,
     });
     if (!res.ok) throw new Error("verify HTTP " + res.status);
 
     const data = await res.json();
-    // the worker normalises every PandaAuth response shape to { valid: bool }
+    // the worker normalises Panda's V2_Authentication response to { valid }
     const valid = data === true || data.valid === true ||
       String(data.status || "").toUpperCase() === "ACTIVE";
 
-    if (!valid) return { ok: false, reason: "invalid" };
+    if (!valid) {
+      return { ok: false, reason: data.error === "hwid_mismatch" ? "hwid" : "invalid" };
+    }
 
     pandaUnlocked = true;
-    writePandaUnlock(clean);
+    writePandaUnlock(clean, hwid);
     return { ok: true, reason: "ok" };
   } catch (err) {
     console.warn("[panda] verify failed:", err && err.message);
@@ -1227,7 +1294,8 @@ function startKeyStage() {
   if (gateKeyHint)  gateKeyHint.textContent  = pt("hint");
   if (gateKeyLink) {
     gateKeyLink.textContent = pt("getkey");
-    gateKeyLink.href = PANDA_GETKEY_URL;
+    gateKeyLink.href = PANDA_GETKEY_URL; // replaced with the hwid-bound URL below
+    pandaGetKeyUrl().then(url => { gateKeyLink.href = url; });
   }
   if (gateKeyInput) {
     gateKeyInput.value = "";
@@ -1282,6 +1350,7 @@ async function submitPandaKey() {
   }
   setGateMessage(pt(result.reason === "empty" ? "empty"
                  : result.reason === "network" ? "network"
+                 : result.reason === "hwid" ? "hwid"
                  : "invalid"), "error");
 }
 
