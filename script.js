@@ -1014,6 +1014,8 @@ function startGateStep(stepNumber) {
   gateStep = stepNumber - 1;
   gateRunning = true;
   gateAwaitingContinue = false;
+  gateDurationMs = gateSettings().step_duration * 1000; // required watch time for this step
+  gateWatchedMs = 0;                                     // reset the clock for this step
   // UI reset for this step
   gateStage.classList.remove("hidden");
   gateDownloadLink.classList.add("hidden");
