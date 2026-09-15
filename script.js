@@ -1010,39 +1010,23 @@ function openModal(product) {
 }
 
 /* ---------- gate steps ---------- */
-function startGateStep(stepNumber) {
-  gateStep = stepNumber - 1;
-  const { step_duration } = gateSettings();
-  gateDurationMs = Math.max(5, step_duration) * 1000;
-  gateWatchedMs = 0;
-  gateAwaitingContinue = false;
-  gateRunning = true;
-  gateLastTick = performance.now();
-
-  const tag = gateTagForStep(gateStep);
-  if (tag && window.AdEngine) {
-    gateResolverAbort();
-    gateResolver = new AbortController();
-    showGateLoading(true);
-
-    AdEngine.playAdTag(tag, {
-      videoEl: gateVideo,
-      signal: gateResolver.signal,
-      onDirect: function(url) {
-        showGateLoading(false);
-        startFallbackStep();
-        AdEngine.attachDirectLink(gateVideoFallback, url);
-      },
-      onFallback: function() {
-        showGateLoading(false);
-        startFallbackStep();
-      }
-    }).then(function() {
+const tag = gateTagForStep(gateStep);
+if (tag && window.AdEngine) {
+  gateResolverAbort();
+  gateResolver = new AbortController();
+  showGateLoading(true);
+  AdEngine.playAdTag(tag, {
+    videoEl: gateVideo,
+    signal: gateResolver.signal,
+    onDirect: (url) => {                 // Direct Link: العداد يشتغل عادي
       showGateLoading(false);
-    });
-  } else {
-    startFallbackStep();
-  }
+      startFallbackStep();
+      AdEngine.attachDirectLink(gateVideoFallback, url);  // يفتح بضغطة المستخدم فقط
+    },
+    onFallback: () => { showGateLoading(false); startFallbackStep(); },
+  }).then(() => showGateLoading(false));
+} else {
+  startFallbackStep();
 }
   // UI reset for this step
   gateStage.classList.remove("hidden");
