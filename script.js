@@ -1020,6 +1020,30 @@ function startGateStep(stepNumber) {
   gateRunning = true;
   gateLastTick = performance.now();
 
+  const tag = gateTagForStep(gateStep);
+  if (tag && window.AdEngine) {
+    gateResolverAbort();
+    gateResolver = new AbortController();
+    showGateLoading(true);
+
+    AdEngine.playAdTag(tag, {
+      videoEl: gateVideo,
+      signal: gateResolver.signal,
+      onDirect: (url) => {
+        showGateLoading(false);
+        startFallbackStep();
+        AdEngine.attachDirectLink(gateVideoFallback, url);
+      },
+      onFallback: () => {
+        showGateLoading(false);
+        startFallbackStep();
+      },
+    }).then(() => showGateLoading(false));
+  } else {
+    startFallbackStep();
+  }
+}
+
   // UI reset for this step
   gateStage.classList.remove("hidden");
   gateDownloadLink.classList.add("hidden");
