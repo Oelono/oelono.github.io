@@ -1291,7 +1291,15 @@ function startKeyStage() {
   gateKeyStage.classList.remove("hidden");
   if (gateKeyTitle) gateKeyTitle.textContent = pt("title");
   if (gateKeyDesc)  gateKeyDesc.textContent  = pt("desc");
-  if (gateKeyHint)  gateKeyHint.textContent  = pt("hint");
+  if (gateKeyHint) {
+    gateKeyHint.textContent = pt("hint");
+    // TEMP DEBUG: show this device's computed hwid so you can compare it
+    // by eye against the ?hwid=... value in the GetKey link you opened.
+    // Safe to remove once verification is confirmed working.
+    getPandaHwid().then(hwid => {
+      gateKeyHint.textContent = pt("hint") + "  [hwid: " + hwid.slice(0, 12) + "…]";
+    });
+  }
   if (gateKeyLink) {
     gateKeyLink.textContent = pt("getkey");
     gateKeyLink.href = PANDA_GETKEY_URL; // replaced with the hwid-bound URL below
