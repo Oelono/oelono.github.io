@@ -1029,7 +1029,7 @@ function openModal(product) {
 
 // --- config ---------------------------------------------------------------
 // TODO: replace with your deployed worker URL (see panda-worker.js)
-const PANDA_VERIFY_ENDPOINT = "https://YOUR-WORKER-SUBDOMAIN.workers.dev/verify-key";
+const PANDA_VERIFY_ENDPOINT = "https://panda.beenbeen123455678.workers.dev/verify-key";
 const PANDA_GETKEY_URL      = "https://ads.pandauth.com/getkey/oelonohub";
 const PANDA_SERVICE         = "oelonohub"; // = the Identifier in your dashboard
 const PANDA_UNLOCK_TTL_MS   = 24 * 60 * 60 * 1000; // key rotates every 24h
