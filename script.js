@@ -1010,7 +1010,6 @@ function openModal(product) {
 }
 
 /* ---------- gate steps ---------- */
-
 function startGateStep(stepNumber) {
   gateStep = stepNumber - 1;
   const { step_duration } = gateSettings();
@@ -1037,13 +1036,12 @@ function startGateStep(stepNumber) {
       onFallback: () => {
         showGateLoading(false);
         startFallbackStep();
-      },
+      }
     }).then(() => showGateLoading(false));
   } else {
     startFallbackStep();
   }
 }
-
   // UI reset for this step
   gateStage.classList.remove("hidden");
   gateDownloadLink.classList.add("hidden");
