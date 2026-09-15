@@ -1004,13 +1004,308 @@ function openModal(product) {
   if (!settings.enable_steps) {
     // gate disabled in CMS -> straight to the final download button
     revealFinalDownload();
-  } else {
+  } else if (isPandaUnlocked()) {
+    // Stage 1 already cleared in this session -> go straight to the ad steps
+    hideKeyStage();
     startGateStep(1);
+  } else {
+    // Stage 1 first: no ad, no countdown, until the key is verified
+    startKeyStage();
   }
+}
+
+/* =========================================================
+   STAGE 1 — PandaAuth dynamic key verification
+   ---------------------------------------------------------
+   Flow enforced by this block:
+     Stage 1  key check  ->  Stage 2  4 ad steps  ->  Stage 3  file
+   Nothing in the ad engine (VAST fetch, video, fallback timer)
+   is allowed to start before isPandaUnlocked() returns true.
+
+   The PandaAuth API key is a SECRET and must never live in this
+   file. All validation goes through the Cloudflare Worker in
+   oauth-worker/panda-worker.js, which answers { valid: bool }.
+   ========================================================= */
+
+// --- config ---------------------------------------------------------------
+// TODO: replace with your deployed worker URL (see oauth-worker/panda-worker.js)
+const PANDA_VERIFY_ENDPOINT = "https://YOUR-WORKER-SUBDOMAIN.workers.dev/verify-key";
+const PANDA_GETKEY_URL      = "https://ads.pandauth.com/getkey/oelonohub";
+const PANDA_SERVICE         = "oelonohub";
+const PANDA_UNLOCK_TTL_MS   = 24 * 60 * 60 * 1000; // key rotates every 24h
+const PANDA_STORE_KEY       = "panda_gate_unlock_v1";
+const PANDA_TIMEOUT_MS      = 12000;
+
+// --- state ----------------------------------------------------------------
+let pandaUnlocked   = false;  // in-memory mirror of the stored unlock
+let pandaVerifying  = false;  // a request is in flight
+let pandaAbort      = null;   // AbortController for that request
+
+// --- tiny local i18n (independent of i18n.js so nothing else needs editing)
+const PANDA_STRINGS = {
+  en: {
+    title: "Step 1 — Enter your access key",
+    desc: "Get the free key from PandaAuth, then paste it below to unlock the download steps.",
+    getkey: "Get my key",
+    placeholder: "Paste your key here…",
+    verify: "Verify key",
+    verifying: "Verifying…",
+    ok: "Key verified. Unlocking the download steps…",
+    invalid: "This key is invalid or has expired. Get a fresh key and try again.",
+    empty: "Please enter your key first.",
+    network: "Could not reach the verification server. Check your connection and try again.",
+    hint: "Keys are free and refresh every 24 hours.",
+  },
+  ar: {
+    title: "الخطوة 1 — أدخل مفتاح الدخول",
+    desc: "احصل على المفتاح المجاني من PandaAuth ثم الصقه بالأسفل لفتح خطوات التحميل.",
+    getkey: "احصل على المفتاح",
+    placeholder: "الصق المفتاح هنا…",
+    verify: "تحقق من المفتاح",
+    verifying: "جارٍ التحقق…",
+    ok: "تم التحقق من المفتاح. جارٍ فتح خطوات التحميل…",
+    invalid: "هذا المفتاح غير صالح أو منتهي الصلاحية. احصل على مفتاح جديد وحاول مرة أخرى.",
+    empty: "من فضلك أدخل المفتاح أولاً.",
+    network: "تعذّر الوصول إلى خادم التحقق. تأكد من اتصالك وحاول مرة أخرى.",
+    hint: "المفاتيح مجانية ويتم تحديثها كل 24 ساعة.",
+  },
+  ru: {
+    title: "Шаг 1 — Введите ключ доступа",
+    desc: "Получите бесплатный ключ в PandaAuth и вставьте его ниже, чтобы открыть шаги загрузки.",
+    getkey: "Получить ключ",
+    placeholder: "Вставьте ключ сюда…",
+    verify: "Проверить ключ",
+    verifying: "Проверка…",
+    ok: "Ключ подтверждён. Открываем шаги загрузки…",
+    invalid: "Ключ недействителен или истёк. Получите новый ключ и повторите попытку.",
+    empty: "Сначала введите ключ.",
+    network: "Не удалось связаться с сервером проверки. Проверьте соединение.",
+    hint: "Ключи бесплатны и обновляются каждые 24 часа.",
+  },
+};
+
+function pt(key) {
+  const lang = (state && state.lang) || "en";
+  const pack = PANDA_STRINGS[lang] || PANDA_STRINGS.en;
+  return pack[key] || PANDA_STRINGS.en[key] || "";
+}
+
+// --- DOM ------------------------------------------------------------------
+const gateKeyStage = document.getElementById("gate-key-stage");
+const gateKeyTitle = document.getElementById("gate-key-title");
+const gateKeyDesc  = document.getElementById("gate-key-desc");
+const gateKeyLink  = document.getElementById("gate-key-link");
+const gateKeyInput = document.getElementById("gate-key-input");
+const gateKeyBtn   = document.getElementById("gate-key-btn");
+const gateKeyHint  = document.getElementById("gate-key-hint");
+const gateMessage  = document.getElementById("gateMessage");
+
+// --- unlock persistence ---------------------------------------------------
+function readPandaUnlock() {
+  try {
+    const raw = localStorage.getItem(PANDA_STORE_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !data.ts) return null;
+    if (Date.now() - data.ts > PANDA_UNLOCK_TTL_MS) {
+      localStorage.removeItem(PANDA_STORE_KEY);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    return null; // private mode / corrupted value — just re-ask for the key
+  }
+}
+
+function writePandaUnlock(key) {
+  try {
+    localStorage.setItem(PANDA_STORE_KEY, JSON.stringify({ key, ts: Date.now() }));
+  } catch (e) { /* no-op: session still works from memory */ }
+}
+
+// Single source of truth used by the whole gate.
+function isPandaUnlocked() {
+  if (pandaUnlocked) return true;
+  if (readPandaUnlock()) {
+    pandaUnlocked = true;
+    return true;
+  }
+  return false;
+}
+
+function pandaVerifyAbort() {
+  if (pandaAbort) {
+    try { pandaAbort.abort(); } catch (e) { /* no-op */ }
+    pandaAbort = null;
+  }
+  pandaVerifying = false;
+}
+
+// --- messaging ------------------------------------------------------------
+function setGateMessage(text, tone) {
+  if (!gateMessage) return;
+  gateMessage.textContent = text || "";
+  gateMessage.classList.toggle("hidden", !text);
+  const colors = { error: "#FF6B6B", ok: "#00F0FF", info: "var(--ink-dim)" };
+  gateMessage.style.color = colors[tone] || colors.info;
+}
+
+/* ---------------------------------------------------------------
+   verifyPandaKey(key)
+   Asks the worker whether the key is ACTIVE. Never throws to the
+   caller: always resolves to { ok, reason }.
+     reason: "ok" | "invalid" | "empty" | "network"
+   --------------------------------------------------------------- */
+async function verifyPandaKey(key) {
+  const clean = String(key || "").trim();
+  if (!clean) return { ok: false, reason: "empty" };
+
+  pandaVerifyAbort();
+  pandaAbort = new AbortController();
+  pandaVerifying = true;
+  const timeout = setTimeout(() => pandaVerifyAbort(), PANDA_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(PANDA_VERIFY_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key: clean, service: PANDA_SERVICE }),
+      cache: "no-store",
+      signal: pandaAbort.signal,
+    });
+    if (!res.ok) throw new Error("verify HTTP " + res.status);
+
+    const data = await res.json();
+    // the worker normalises every PandaAuth response shape to { valid: bool }
+    const valid = data === true || data.valid === true ||
+      String(data.status || "").toUpperCase() === "ACTIVE";
+
+    if (!valid) return { ok: false, reason: "invalid" };
+
+    pandaUnlocked = true;
+    writePandaUnlock(clean);
+    return { ok: true, reason: "ok" };
+  } catch (err) {
+    console.warn("[panda] verify failed:", err && err.message);
+    return { ok: false, reason: "network" };
+  } finally {
+    clearTimeout(timeout);
+    pandaVerifying = false;
+    pandaAbort = null;
+  }
+}
+
+// --- Stage 1 UI -----------------------------------------------------------
+function startKeyStage() {
+  // hard-stop anything the ad engine may have left running
+  stopGateTicker();
+  gateResolverAbort();
+  gateAwaitingContinue = true;
+  try { gateVideo.pause(); } catch (e) { /* no-op */ }
+  gateVideo.removeAttribute("src");
+  gateVideo.load();
+  hideGateOverlays();
+  hideGatePlayChip();
+
+  // Stage 2 / Stage 3 UI stays hidden until the key passes
+  gateStage.classList.add("hidden");
+  gateActionBtn.classList.add("hidden");
+  gateDownloadLink.classList.add("hidden");
+  gateDownloadLink.classList.remove("flex");
+
+  if (!gateKeyStage) {
+    // markup missing — fail open to the ad steps rather than dead-ending
+    console.warn("[panda] #gate-key-stage not found; skipping stage 1");
+    pandaUnlocked = true;
+    startGateStep(1);
+    return;
+  }
+
+  gateKeyStage.classList.remove("hidden");
+  if (gateKeyTitle) gateKeyTitle.textContent = pt("title");
+  if (gateKeyDesc)  gateKeyDesc.textContent  = pt("desc");
+  if (gateKeyHint)  gateKeyHint.textContent  = pt("hint");
+  if (gateKeyLink) {
+    gateKeyLink.textContent = pt("getkey");
+    gateKeyLink.href = PANDA_GETKEY_URL;
+  }
+  if (gateKeyInput) {
+    gateKeyInput.value = "";
+    gateKeyInput.placeholder = pt("placeholder");
+    gateKeyInput.disabled = false;
+  }
+  if (gateKeyBtn) {
+    gateKeyBtn.disabled = false;
+    gateKeyBtn.textContent = pt("verify");
+  }
+  setGateMessage("", "info");
+
+  renderStepIndicator(GATE_TOTAL_STEPS, 0);
+  updateOverallProgress(GATE_TOTAL_STEPS, 0, 0);
+  modalHint.textContent = pt("desc");
+}
+
+function hideKeyStage() {
+  if (gateKeyStage) gateKeyStage.classList.add("hidden");
+  setGateMessage("", "info");
+}
+
+// --- Stage 1 -> Stage 2 handover -----------------------------------------
+async function submitPandaKey() {
+  if (pandaVerifying) return;                 // non-blocking: ignore double taps
+  const key = gateKeyInput ? gateKeyInput.value : "";
+
+  if (gateKeyBtn) {
+    gateKeyBtn.disabled = true;
+    gateKeyBtn.textContent = pt("verifying");
+  }
+  if (gateKeyInput) gateKeyInput.disabled = true;
+  setGateMessage(pt("verifying"), "info");
+
+  const result = await verifyPandaKey(key);
+
+  if (result.ok) {
+    setGateMessage(pt("ok"), "ok");
+    hideKeyStage();
+    startGateStep(1);                          // Stage 2 begins here, only here
+    return;
+  }
+
+  // failure: warn clearly and stop — no ads, no countdown, no download
+  if (gateKeyBtn) {
+    gateKeyBtn.disabled = false;
+    gateKeyBtn.textContent = pt("verify");
+  }
+  if (gateKeyInput) {
+    gateKeyInput.disabled = false;
+    gateKeyInput.focus();
+  }
+  setGateMessage(pt(result.reason === "empty" ? "empty"
+                 : result.reason === "network" ? "network"
+                 : "invalid"), "error");
+}
+
+if (gateKeyBtn) {
+  gateKeyBtn.addEventListener("click", () => { submitPandaKey(); });
+}
+if (gateKeyInput) {
+  gateKeyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      submitPandaKey();
+    }
+  });
 }
 
 /* ---------- gate steps ---------- */
 function startGateStep(stepNumber) {
+  // HARD GATE: Stage 2 can never run before Stage 1 passed.
+  if (!isPandaUnlocked()) {
+    startKeyStage();
+    return;
+  }
+  hideKeyStage();
+
   gateStep = stepNumber - 1;
   gateRunning = true;
   gateAwaitingContinue = false;
@@ -1263,6 +1558,8 @@ function closeModal() {
   gateAwaitingContinue = true;
   stopGateTicker();
   gateResolverAbort();
+  pandaVerifyAbort();
+  hideKeyStage();
   hideGatePlayChip();
   try { gateVideo.pause(); } catch (e) { /* no-op */ }
   gateVideo.removeAttribute("src");
