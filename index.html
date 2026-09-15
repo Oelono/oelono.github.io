@@ -938,6 +938,25 @@ class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)]
 </div>
 </div>
 
+<!-- STAGE 1 — PandaAuth dynamic key -->
+<div id="gate-key-stage" class="mt-5 hidden">
+<div class="rounded-xl border border-[var(--line)] p-4" style="background:rgba(157,78,221,0.06);">
+<h4 id="gate-key-title" class="text-sm font-semibold"></h4>
+<p id="gate-key-desc" class="text-xs text-[var(--ink-dim)] mt-1.5 leading-relaxed"></p>
+<a id="gate-key-link" href="https://ads.pandauth.com/getkey/oelonohub" target="_blank" rel="noopener"
+   class="inline-flex items-center gap-1.5 text-xs font-semibold mt-3" style="color:#C79BFF;"></a>
+<div class="flex flex-col sm:flex-row gap-2 mt-3">
+<input id="gate-key-input" type="text" autocomplete="off" spellcheck="false"
+       class="flex-1 px-3 py-2.5 rounded-lg text-sm bg-transparent border border-[var(--line)] outline-none focus:border-[#9D4EDD]"
+       style="color:var(--ink);">
+<button id="gate-key-btn" type="button"
+        class="btn-primary px-4 py-2.5 rounded-lg text-sm whitespace-nowrap"></button>
+</div>
+<p id="gateMessage" class="hidden text-xs mt-2.5 leading-relaxed"></p>
+<p id="gate-key-hint" class="text-[11px] text-[var(--ink-dim)] mt-2"></p>
+</div>
+</div>
+
 <div id="gate-stage" class="mt-5 hidden">
 <div class="flex items-center justify-between gap-3 mb-2">
 <span id="gate-step-label" class="text-xs font-semibold"></span>
