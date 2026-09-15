@@ -570,7 +570,18 @@ box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
 
 </head>
 <body class="min-h-screen">
+
+<!-- ADBLOCK NOTICE — shown only if the JS in script.js detects an ad
+     blocker; hidden by default. See detectAdblock() in script.js. -->
+<div id="adblock-banner" class="hidden fixed top-0 inset-x-0 z-[90] bg-[#1a1200] border-b border-[#5c4400] text-[#ffcf5c] text-sm">
+<div class="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-center gap-3 flex-wrap text-center">
+<span data-i18n="adblock_msg">Looks like you're using an ad blocker. Ads keep this site free — please consider disabling it here.</span>
+<button id="adblock-dismiss" type="button" class="underline shrink-0" data-i18n="adblock_dismiss">Dismiss</button>
+</div>
+</div>
+
 <!-- POPUNDER AD (kept high in body so its click-listener attaches before any user interaction) -->
+
 
 <canvas id="sand-canvas"></canvas>
 <!-- NAV -->
@@ -621,6 +632,22 @@ box-shadow:0 12px 30px -10px rgba(0,0,0,0.5);
 </div>
 </div>
 </section>
+
+<!-- AD SLOT — leaderboard 728x90 -->
+<div class="max-w-7xl mx-auto px-6 flex justify-center py-4">
+<div id="ad-leaderboard" class="w-full flex justify-center overflow-hidden">
+<script type="text/javascript">
+	atOptions = {
+		'key' : 'cede1f55f12c2d4341a47341cfadb4d6',
+		'format' : 'iframe',
+		'height' : 90,
+		'width' : 728,
+		'params' : {}
+	};
+</script>
+<script type="text/javascript" src="https://www.highrevenueformat.com/cede1f55f12c2d4341a47341cfadb4d6/invoke.js"></script>
+</div>
+</div>
 
 
 
@@ -790,6 +817,24 @@ class="lib-search-input w-full bg-[var(--bg-raised)] border border-[var(--line)]
 </div>
 </div>
 </section>
+
+<!-- AD SLOTS — skyscraper 160x600 + native banner -->
+<div class="max-w-7xl mx-auto px-6 py-8 flex flex-col items-center gap-6">
+<div id="ad-skyscraper" class="flex justify-center overflow-hidden">
+<script type="text/javascript">
+	atOptions = {
+		'key' : '65eeb729b2e37d03a0903b13c2428823',
+		'format' : 'iframe',
+		'height' : 600,
+		'width' : 160,
+		'params' : {}
+	};
+</script>
+<script type="text/javascript" src="https://www.highrevenueformat.com/65eeb729b2e37d03a0903b13c2428823/invoke.js"></script>
+</div>
+<script async="async" data-cfasync="false" src="https://pl31127465.profitableratecpmnetwork.com/b0a70462aab028233ddf977a15e416ff/invoke.js"></script>
+<div id="container-b0a70462aab028233ddf977a15e416ff"></div>
+</div>
 
 <footer class="border-t border-[var(--line)]">
 <div class="max-w-7xl mx-auto px-6 py-10 flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-[var(--ink-dim)]">
